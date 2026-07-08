@@ -1,33 +1,32 @@
 [package]
 name = "icarus"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2024"
 rust-version = "1.95"
 
 [dependencies]
 axum = { version = "0.8.9", features = ["multipart"] }
 axum-extra = { version = "0.12.6", features = ["cookie"] }
+openssl = { version = "0.10.81", features = ["vendored"] }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = { version = "1.0.149" }
+serde_json = { version = "1.0.150" }
 tokio = { version = "1.52.3", features = ["full"] }
 tokio-util = { version = "0.7.18", features = ["io"] }
 tower = { version = "0.5.3", features = ["full"] }
-tower-http = { version = "0.6.10", features = ["cors", "timeout"] }
+tower-http = { version = "0.7.0", features = ["cors", "timeout"] }
 tracing-subscriber = "0.3.23"
 futures = { version = "0.3.32" }
 mime_guess = { version = "2.0.5" }
-uuid = { version = "1.23.1", features = ["v4", "serde"] }
-sqlx = { version = "0.8.6", features = ["postgres", "runtime-tokio-native-tls", "time", "uuid"] }
-time = { version = "0.3.47", features = ["formatting", "macros", "parsing", "serde"]  }
-thiserror = "2.0.18"
-base64 = "0.22.1"
+uuid = { version = "1.23.4", features = ["v4", "serde"] }
+sqlx = { version = "0.9.0", features = ["postgres", "runtime-tokio", "tls-native-tls", "time", "uuid"] }
+time = { version = "0.3.53", features = ["formatting", "macros", "parsing", "serde"]  }
 jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 josekit = { version = "0.10.3" }
 utoipa = { version = "5.5.0", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
-icarus_meta = { git = "ssh://git@git.kundeng.us/phoenix/icarus_meta.git", tag = "v0.6.0" }
-icarus_models = { git = "ssh://git@git.kundeng.us/phoenix/icarus_models.git", tag = "v0.11.1" }
-icarus_envy = { git = "ssh://git@git.kundeng.us/phoenix/icarus_envy.git", tag = "v0.7.0" }
+icarus_meta = { git = "ssh://git@git.kundeng.us/phoenix/icarus_meta.git", tag = "v0.6.1" }
+icarus_models = { git = "ssh://git@git.kundeng.us/phoenix/icarus_models.git", tag = "v0.11.3" }
+icarus_envy = { git = "ssh://git@git.kundeng.us/phoenix/icarus_envy.git", tag = "v0.8.0" }
 
 [dev-dependencies]
 common-multipart-rfc7578 = { version = "0.7.0" }

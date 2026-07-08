@@ -139,7 +139,7 @@ pub mod endpoint {
                 true,
             )
             .unwrap();
-            song.directory = icarus_envy::environment::get_root_directory().await.value;
+            song.directory = icarus_envy::environment::get_root_directory().value;
 
             match repo_queue::song::get_data(&pool, &payload.song_queue_id).await {
                 Ok(data) => {

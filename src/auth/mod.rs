@@ -36,7 +36,7 @@ pub async fn auth<B>(
         (StatusCode::UNAUTHORIZED, Json(json_error))
     })?;
 
-    let secret_key = icarus_envy::environment::get_secret_main_key().await.value;
+    let secret_key = icarus_envy::environment::get_secret_main_key().value;
 
     let mut validation = Validation::new(jsonwebtoken::Algorithm::HS256);
     validation.set_audience(&["icarus"]); // Must match exactly what's in the token

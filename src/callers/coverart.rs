@@ -68,7 +68,7 @@ pub mod endpoint {
                 let song_id = payload.song_id;
                 match crate::repo::song::get_song(&pool, &song_id).await {
                     Ok(song) => {
-                        let directory = icarus_envy::environment::get_root_directory().await.value;
+                        let directory = icarus_envy::environment::get_root_directory().value;
                         let file_type =
                             icarus_meta::detection::coverart::file_type_from_data(&data).unwrap();
                         let coverart_type = if file_type.file_type

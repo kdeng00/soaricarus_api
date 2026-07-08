@@ -40,7 +40,7 @@ mod cors {
         match std::env::var(icarus_envy::keys::APP_ENV).as_deref() {
             Ok("production") => {
                 // In production, allow only your specific, trusted origins
-                let allowed_origins_env = icarus_envy::environment::get_allowed_origins().await;
+                let allowed_origins_env = icarus_envy::environment::get_allowed_origins();
                 match icarus_envy::utility::delimitize(&allowed_origins_env) {
                     Ok(alwd) => {
                         let allowed_origins: Vec<axum::http::HeaderValue> = alwd
@@ -60,6 +60,8 @@ mod cors {
                 cors.allow_origin(vec![
                     "http://localhost:8000".parse().unwrap(),
                     "http://127.0.0.1:8000".parse().unwrap(),
+                    "http://localhost:8001".parse().unwrap(),
+                    "http://127.0.0.1:8001".parse().unwrap(),
                     "http://localhost:4200".parse().unwrap(),
                     "http://127.0.0.1:4200".parse().unwrap(),
                 ])
