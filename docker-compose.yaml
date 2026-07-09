@@ -3,12 +3,11 @@ version: '3.8' # Use a recent version
 services:
   # --- Web API ---
   api:
-    build: # Tells docker-compose to build the Dockerfile in the current directory
+    build:
       context: .
-      ssh: ["default"]  # Uses host's SSH agent
-    container_name: icarus # Optional: Give the container a specific name
+      ssh: ["default"]
+    container_name: icarus
     ports:
-      # Map host port 8000 to container port 3000 (adjust as needed)
       - "8000:8000"
     env_file:
       - .env
@@ -17,21 +16,18 @@ services:
         condition: service_healthy
     networks:
       - icarus-network
-    restart: unless-stopped # Optional: Restart policy
+    restart: unless-stopped
 
   # --- Web API auth ---
   auth_api:
     build:
       context: ../icarus_auth # IMPORTANT: Relative path to the local checkout of your web API repo (containing the Dockerfile)
-      ssh: ["default"]  # Uses host's SSH agent
+      ssh: ["default"]
       dockerfile: Dockerfile # Optional: Specify if your Dockerfile has a non-standard name
     container_name: auth_api
     restart: unless-stopped
     ports:
-      - "8001:8001" # Map host port 8000 to container port 8000 (adjust container port based on your app's EXPOSE in Dockerfile)
-    # environment:
-      # Environment variables your API needs, e.g., database connection
-      # Add other necessary environment variables
+      - "8001:8001"
     env_file:
      - ../icarus_auth/.env
     depends_on:
@@ -63,10 +59,9 @@ services:
 
 
   # PostgreSQL Database Service
-  # --- icarus web api db ---
   main_db:
-    image: postgres:18.3-alpine # Use an official Postgres image (Alpine variant is smaller)
-    container_name: icarus_db # Optional: Give the container a specific name
+    image: postgres:18.4-alpine
+    container_name: icarus_db
     environment:
       # These MUST match the user, password, and database name in the DATABASE_URL above
       POSTGRES_USER: ${POSTGRES_MAIN_USER:-icarus}
@@ -76,7 +71,6 @@ services:
       # Persist database data using a named volume
       - postgres_data:/var/lib/postgresql
     ports:
-      # Optional: Expose port 5432 ONLY if you need to connect directly from your host machine (e.g., for debugging)
       - "5432:5432"
     healthcheck:
         # Checks if Postgres is ready to accept connections
@@ -85,14 +79,14 @@ services:
         timeout: 5s
         retries: 5
         start_period: 10s
-    restart: always # Optional: Restart policy
+    restart: always
     networks:
       - icarus-network
 
   # --- icarus web auth api db ---
   auth_db:
-    image: postgres:18.3-alpine # Use an official Postgres image (Alpine variant is smaller)
-    container_name: icarus_auth_db # Optional: Give the container a specific name
+    image: postgres:18.4-alpine
+    container_name: icarus_auth_db
     environment:
       # These MUST match the user, password, and database name in the DATABASE_URL above
       POSTGRES_USER: ${POSTGRES_AUTH_USER:-icarus_op}
@@ -102,7 +96,6 @@ services:
       # Persist database data using a named volume
       - postgres_data_auth:/var/lib/postgresql
     ports: 
-      # Optional: Expose port 5432 ONLY if you need to connect directly from your host machine (e.g., for debugging)
       - "5433:5432"
     healthcheck:
         # Checks if Postgres is ready to accept connections
@@ -111,18 +104,16 @@ services:
         timeout: 5s
         retries: 5
         start_period: 10s
-    restart: always # Optional: Restart policy
+    restart: always
     networks:
       - icarus-network
 
-# Define the named volume for data persistence
 volumes:
   postgres_data:
     driver: local # Use the default local driver
   postgres_data_auth:
     driver: local # Use the default local driver
 
-# Define the network (optional, but good practice)
 networks:
   icarus-network:
     driver: bridge

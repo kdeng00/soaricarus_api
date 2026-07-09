@@ -61,7 +61,10 @@ mod tests {
             db_name: &str,
         ) -> Result<(), sqlx::Error> {
             let create_query = format!("CREATE DATABASE {}", db_name);
-            match sqlx::query(&create_query).execute(template_pool).await {
+            match sqlx::query(sqlx::AssertSqlSafe(create_query))
+                .execute(template_pool)
+                .await
+            {
                 Ok(_) => Ok(()),
                 Err(e) => Err(e),
             }
@@ -73,7 +76,9 @@ mod tests {
             db_name: &str,
         ) -> Result<(), sqlx::Error> {
             let drop_query = format!("DROP DATABASE IF EXISTS {} WITH (FORCE)", db_name);
-            sqlx::query(&drop_query).execute(template_pool).await?;
+            sqlx::query(sqlx::AssertSqlSafe(drop_query))
+                .execute(template_pool)
+                .await?;
             Ok(())
         }
 
@@ -106,13 +111,16 @@ mod tests {
     }
 
     mod init {
+        use std::time::Duration;
+
         pub async fn app(pool: sqlx::PgPool) -> axum::Router {
             crate::config::init::routes()
                 .await
                 .layer(axum::Extension(pool))
                 .layer(axum::extract::DefaultBodyLimit::max(1024 * 1024 * 1024))
-                .layer(tower_http::timeout::TimeoutLayer::new(
-                    std::time::Duration::from_secs(300),
+                .layer(tower_http::timeout::TimeoutLayer::with_status_code(
+                    axum::http::StatusCode::OK,
+                    Duration::from_secs(300),
                 ))
         }
     }
