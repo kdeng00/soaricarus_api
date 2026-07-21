@@ -2,7 +2,7 @@ use sqlx::Row;
 
 pub async fn create(
     pool: &sqlx::PgPool,
-    coverart: &icarus_models::coverart::CoverArt,
+    coverart: &simodels::coverart::CoverArt,
     song_id: &uuid::Uuid,
 ) -> Result<uuid::Uuid, sqlx::Error> {
     let result = sqlx::query(
@@ -36,7 +36,7 @@ pub async fn create(
 pub async fn get_coverart(
     pool: &sqlx::PgPool,
     id: &uuid::Uuid,
-) -> Result<icarus_models::coverart::CoverArt, sqlx::Error> {
+) -> Result<simodels::coverart::CoverArt, sqlx::Error> {
     let result = sqlx::query(
         r#"
         SELECT id, title, directory, filename, file_type, song_id FROM "coverart" WHERE id = $1;
@@ -50,7 +50,7 @@ pub async fn get_coverart(
     });
 
     match result {
-        Ok(row) => Ok(icarus_models::coverart::CoverArt {
+        Ok(row) => Ok(simodels::coverart::CoverArt {
             id: row
                 .try_get("id")
                 .map_err(|_e| sqlx::Error::RowNotFound)
@@ -84,7 +84,7 @@ pub async fn get_coverart(
 pub async fn get_coverart_with_song_id(
     pool: &sqlx::PgPool,
     song_id: &uuid::Uuid,
-) -> Result<icarus_models::coverart::CoverArt, sqlx::Error> {
+) -> Result<simodels::coverart::CoverArt, sqlx::Error> {
     let result = sqlx::query(
         r#"
         SELECT id, title, directory, filename, file_type, song_id FROM "coverart" WHERE song_id = $1;
@@ -98,7 +98,7 @@ pub async fn get_coverart_with_song_id(
     });
 
     match result {
-        Ok(row) => Ok(icarus_models::coverart::CoverArt {
+        Ok(row) => Ok(simodels::coverart::CoverArt {
             id: row
                 .try_get("id")
                 .map_err(|_e| sqlx::Error::RowNotFound)
@@ -132,7 +132,7 @@ pub async fn get_coverart_with_song_id(
 pub async fn delete_coverart(
     pool: &sqlx::PgPool,
     id: &uuid::Uuid,
-) -> Result<icarus_models::coverart::CoverArt, sqlx::Error> {
+) -> Result<simodels::coverart::CoverArt, sqlx::Error> {
     let result = sqlx::query(
         r#"
         DELETE FROM "coverart"
@@ -148,7 +148,7 @@ pub async fn delete_coverart(
     });
 
     match result {
-        Ok(row) => Ok(icarus_models::coverart::CoverArt {
+        Ok(row) => Ok(simodels::coverart::CoverArt {
             id: row
                 .try_get("id")
                 .map_err(|_e| sqlx::Error::RowNotFound)

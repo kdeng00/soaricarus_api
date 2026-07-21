@@ -28,20 +28,18 @@ mod cors {
                 axum::http::Method::POST,
                 axum::http::Method::PUT,
                 axum::http::Method::DELETE,
-            ]) // Specify allowed methods:cite[2]
+            ])
             .allow_headers([
                 axum::http::header::CONTENT_TYPE,
                 axum::http::header::AUTHORIZATION,
-            ]) // Specify allowed headers:cite[2]
-            .allow_credentials(true) // If you need to send cookies or authentication headers:cite[2]
+            ])
+            .allow_credentials(true)
             .max_age(std::time::Duration::from_secs(3600)); // Cache the preflight response for 1 hour:cite[2]
 
-        // Dynamically set the allowed origin based on the environment
-        match std::env::var(icarus_envy::keys::APP_ENV).as_deref() {
+        match std::env::var(sienvy::keys::APP_ENV).as_deref() {
             Ok("production") => {
-                // In production, allow only your specific, trusted origins
-                let allowed_origins_env = icarus_envy::environment::get_allowed_origins();
-                match icarus_envy::utility::delimitize(&allowed_origins_env) {
+                let allowed_origins_env = sienvy::environment::get_allowed_origins();
+                match sienvy::utility::delimitize(&allowed_origins_env) {
                     Ok(alwd) => {
                         let allowed_origins: Vec<axum::http::HeaderValue> = alwd
                             .into_iter()
@@ -55,17 +53,14 @@ mod cors {
                     }
                 }
             }
-            _ => {
-                // Development (default): Allow localhost origins
-                cors.allow_origin(vec![
-                    "http://localhost:8000".parse().unwrap(),
-                    "http://127.0.0.1:8000".parse().unwrap(),
-                    "http://localhost:8001".parse().unwrap(),
-                    "http://127.0.0.1:8001".parse().unwrap(),
-                    "http://localhost:4200".parse().unwrap(),
-                    "http://127.0.0.1:4200".parse().unwrap(),
-                ])
-            }
+            _ => cors.allow_origin(vec![
+                "http://localhost:8000".parse().unwrap(),
+                "http://127.0.0.1:8000".parse().unwrap(),
+                "http://localhost:8001".parse().unwrap(),
+                "http://127.0.0.1:8001".parse().unwrap(),
+                "http://localhost:4200".parse().unwrap(),
+                "http://127.0.0.1:4200".parse().unwrap(),
+            ]),
         }
     }
 }
@@ -86,7 +81,7 @@ mod cors {
             coverart_queue_responses::wipe_data_from_coverart_queue::Response, coverart_responses::get_coverart::Response,
             metadata_queue_responses::queue_metadata::Response, metadata_queue_responses::fetch_metadata::Response)),
     tags(
-        (name = "Icarus API", description = "Web API to manage music")
+        (name = "soaricarus API", description = "Web API to manage music")
     )
 )]
 struct ApiDoc;

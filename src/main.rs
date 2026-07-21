@@ -38,7 +38,7 @@ mod tests {
         pub const LIMIT: usize = 6;
 
         pub async fn get_pool() -> Result<sqlx::PgPool, sqlx::Error> {
-            let tm_db_url = icarus_envy::environment::get_db_url().value;
+            let tm_db_url = sienvy::environment::get_db_url().value;
             let tm_options = sqlx::postgres::PgConnectOptions::from_str(&tm_db_url).unwrap();
             sqlx::PgPool::connect_with(tm_options).await
         }
@@ -51,7 +51,7 @@ mod tests {
         }
 
         pub async fn connect_to_db(db_name: &str) -> Result<sqlx::PgPool, sqlx::Error> {
-            let db_url = icarus_envy::environment::get_db_url().value;
+            let db_url = sienvy::environment::get_db_url().value;
             let options = sqlx::postgres::PgConnectOptions::from_str(&db_url)?.database(db_name);
             sqlx::PgPool::connect_with(options).await
         }
@@ -83,7 +83,7 @@ mod tests {
         }
 
         pub async fn get_database_name() -> Result<String, Box<dyn std::error::Error>> {
-            let database_url = icarus_envy::environment::get_db_url().value;
+            let database_url = sienvy::environment::get_db_url().value;
             let parsed_url = url::Url::parse(&database_url)?;
 
             if parsed_url.scheme() == "postgres" || parsed_url.scheme() == "postgresql" {
@@ -149,25 +149,25 @@ mod tests {
     pub fn token_fields() -> (String, String, String) {
         (
             String::from("What a twist!"),
-            String::from("icarus_test"),
-            String::from("icarus"),
+            String::from("soaricarus_test"),
+            String::from("soaricarus"),
         )
     }
 
     pub const TEST_USER_ID: uuid::Uuid = uuid::uuid!("cc938368-615a-4694-b2ca-6e122fa31c52");
 
     pub async fn test_token() -> Result<String, josekit::JoseError> {
-        let key: String = icarus_envy::environment::get_secret_main_key().value;
+        let key: String = sienvy::environment::get_secret_main_key().value;
         let (message, issuer, audience) = token_fields();
 
-        let token_resource = icarus_models::token::TokenResource {
+        let token_resource = simodels::token::TokenResource {
             message: message,
             issuer: issuer,
             audiences: vec![audience],
             id: TEST_USER_ID,
         };
 
-        match icarus_models::token::create_token(&key, &token_resource, time::Duration::hours(1)) {
+        match simodels::token::create_token(&key, &token_resource, time::Duration::hours(1)) {
             Ok((access_token, _some_time)) => Ok(access_token),
             Err(err) => Err(err),
         }
@@ -289,7 +289,7 @@ mod tests {
                 .uri(uri)
                 .header(
                     axum::http::header::CONTENT_TYPE,
-                    icarus_meta::detection::song::constants::mime::FLAC,
+                    simeta::detection::song::constants::mime::FLAC,
                 )
                 .header(
                     axum::http::header::AUTHORIZATION,
@@ -306,7 +306,7 @@ mod tests {
         ) -> Result<axum::response::Response, std::convert::Infallible> {
             let mut form = MultipartForm::default();
             let _ = form.add_file(
-                icarus_meta::detection::coverart::constants::JPEG_TYPE,
+                simeta::detection::coverart::constants::JPEG_TYPE,
                 "tests/I/Coverart-1.jpg",
             );
 
@@ -913,10 +913,10 @@ mod tests {
                             let temp_file =
                                 tempfile::tempdir().expect("Could not create test directory");
                             let test_dir = String::from(temp_file.path().to_str().unwrap());
-                            let song = icarus_models::song::Song {
+                            let song = simodels::song::Song {
                                 directory: test_dir,
-                                filename: icarus_models::song::generate_filename(
-                                    icarus_models::types::MusicType::FlacExtension,
+                                filename: simodels::song::generate_filename(
+                                    simodels::types::MusicType::FlacExtension,
                                     true,
                                 )
                                 .unwrap(),
@@ -2219,20 +2219,20 @@ mod tests {
             coverart_directory: &String,
             coverart_filename: &String,
         ) -> Result<(Vec<u8>, Vec<u8>), std::io::Error> {
-            let song = icarus_models::song::Song {
+            let song = simodels::song::Song {
                 directory: song_directory.clone(),
                 filename: song_filename.clone(),
                 ..Default::default()
             };
 
-            let coverart = icarus_models::coverart::CoverArt {
+            let coverart = simodels::coverart::CoverArt {
                 directory: coverart_directory.clone(),
                 filename: coverart_filename.clone(),
                 ..Default::default()
             };
 
-            match icarus_models::song::io::to_data(&song) {
-                Ok(song_data) => match icarus_models::coverart::io::to_data(&coverart) {
+            match simodels::song::io::to_data(&song) {
+                Ok(song_data) => match simodels::coverart::io::to_data(&coverart) {
                     Ok(coverart_data) => Ok((song_data, coverart_data)),
                     Err(err) => Err(err),
                 },
@@ -2248,14 +2248,14 @@ mod tests {
             coverart_filename: &String,
             coverart_data: Vec<u8>,
         ) -> Result<(), std::io::Error> {
-            let song = icarus_models::song::Song {
+            let song = simodels::song::Song {
                 directory: song_directory.clone(),
                 filename: song_filename.clone(),
                 data: song_data,
                 ..Default::default()
             };
 
-            let coverart = icarus_models::coverart::CoverArt {
+            let coverart = simodels::coverart::CoverArt {
                 directory: coverart_directory.clone(),
                 filename: coverart_filename.clone(),
                 data: coverart_data,

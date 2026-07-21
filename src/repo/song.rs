@@ -2,7 +2,7 @@ use sqlx::Row;
 
 pub async fn insert(
     pool: &sqlx::PgPool,
-    song: &icarus_models::song::Song,
+    song: &simodels::song::Song,
 ) -> Result<(time::OffsetDateTime, uuid::Uuid), sqlx::Error> {
     let result = sqlx::query(
         r#"
@@ -52,7 +52,7 @@ pub async fn insert(
 pub async fn get_song(
     pool: &sqlx::PgPool,
     id: &uuid::Uuid,
-) -> Result<icarus_models::song::Song, sqlx::Error> {
+) -> Result<simodels::song::Song, sqlx::Error> {
     let result = sqlx::query(
         r#"
         SELECT * FROM "song" WHERE id = $1
@@ -72,7 +72,7 @@ pub async fn get_song(
                 .map_err(|_e| sqlx::Error::RowNotFound)
                 .unwrap();
 
-            Ok(icarus_models::song::Song {
+            Ok(simodels::song::Song {
                 id: row
                     .try_get("id")
                     .map_err(|_e| sqlx::Error::RowNotFound)
@@ -145,9 +145,7 @@ pub async fn get_song(
     }
 }
 
-pub async fn get_all_songs(
-    pool: &sqlx::PgPool,
-) -> Result<Vec<icarus_models::song::Song>, sqlx::Error> {
+pub async fn get_all_songs(pool: &sqlx::PgPool) -> Result<Vec<simodels::song::Song>, sqlx::Error> {
     let result = sqlx::query(
         r#"
         SELECT * FROM "song";
@@ -161,7 +159,7 @@ pub async fn get_all_songs(
 
     match result {
         Ok(rows) => {
-            let mut songs: Vec<icarus_models::song::Song> = Vec::new();
+            let mut songs: Vec<simodels::song::Song> = Vec::new();
 
             for row in rows {
                 let date_created_time: time::OffsetDateTime = row
@@ -169,7 +167,7 @@ pub async fn get_all_songs(
                     .map_err(|_e| sqlx::Error::RowNotFound)
                     .unwrap();
 
-                let song = icarus_models::song::Song {
+                let song = simodels::song::Song {
                     id: row
                         .try_get("id")
                         .map_err(|_e| sqlx::Error::RowNotFound)
@@ -250,9 +248,9 @@ pub async fn get_all_songs(
 pub async fn delete_song(
     pool: &sqlx::PgPool,
     id: &uuid::Uuid,
-) -> Result<icarus_models::song::Song, sqlx::Error> {
+) -> Result<simodels::song::Song, sqlx::Error> {
     let result = sqlx::query(
-        // icarus_models::song::Song,
+        // simodels::song::Song,
         r#"
         DELETE FROM "song"
         WHERE id = $1
@@ -273,7 +271,7 @@ pub async fn delete_song(
                 .map_err(|_e| sqlx::Error::RowNotFound)
                 .unwrap();
 
-            Ok(icarus_models::song::Song {
+            Ok(simodels::song::Song {
                 id: row
                     .try_get("id")
                     .map_err(|_e| sqlx::Error::RowNotFound)

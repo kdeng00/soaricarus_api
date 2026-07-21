@@ -1,5 +1,4 @@
-# Stage 1: Build the application
-FROM rust:1.95 as builder
+FROM rust:1.97 as builder
 
 # Set the working directory inside the container
 WORKDIR /usr/src/app
@@ -17,34 +16,24 @@ RUN mkdir -p -m 0700 ~/.ssh && \
     echo "    User git" >> ~/.ssh/config && \
     chmod 600 ~/.ssh/config
 
-# << --- ADD HOST KEY HERE --- >>
 RUN ssh-keyscan git.kundeng.us >> ~/.ssh/known_hosts
 
 # Copy Cargo manifests
 COPY Cargo.toml Cargo.lock ./
 
-# Build *only* dependencies to leverage Docker cache
-# This dummy build caches dependencies as a separate layer
 RUN --mount=type=ssh mkdir src && \
     echo "fn main() {println!(\"if you see this, the build broke\")}" > src/main.rs && \
     cargo build --release --quiet && \
-    rm -rf src target/release/deps/icarus* # Clean up dummy build artifacts (replace icarus)
+    rm -rf src target/release/deps/soaricarus_api*
 
 # Copy the actual source code
 COPY src ./src
-# If you have other directories like `templates` or `static`, copy them too
 COPY .env ./.env
 COPY migrations ./migrations
 
-# << --- SSH MOUNT ADDED HERE --- >>
-# Build *only* dependencies to leverage Docker cache
-# This dummy build caches dependencies as a separate layer
-# Mount the SSH agent socket for this command
 RUN --mount=type=ssh \
     cargo build --release --quiet
 
-# Stage 2: Create the final, smaller runtime image
-# Use a minimal base image like debian-slim or even distroless for security/size
 FROM debian:trixie-slim
 
 # Install runtime dependencies if needed (e.g., SSL certificates)
@@ -53,18 +42,11 @@ RUN apt-get update && apt-get install -y ca-certificates libssl-dev libssl3 && r
 # Set the working directory
 WORKDIR /usr/local/bin
 
-# Copy the compiled binary from the builder stage
-# Replace 'icarus' with the actual name of your binary (usually the crate name)
-COPY --from=builder /usr/src/app/target/release/icarus .
+COPY --from=builder /usr/src/app/target/release/soaricarus_api .
 
-# Copy other necessary files like .env (if used for runtime config) or static assets
-# It's generally better to configure via environment variables in Docker though
 COPY --from=builder /usr/src/app/.env .
 COPY --from=builder /usr/src/app/migrations ./migrations
 
-# Expose the port your Axum app listens on (e.g., 3000 or 8000)
 EXPOSE 8000
 
-# Set the command to run your application
-# Ensure this matches the binary name copied above
-CMD ["./icarus"]
+CMD ["./soaricarus_api"]

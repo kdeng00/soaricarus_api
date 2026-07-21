@@ -20,7 +20,7 @@ pub mod response {
         #[derive(Debug, Default, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
         pub struct Response {
             pub message: String,
-            pub data: Vec<icarus_models::coverart::CoverArt>,
+            pub data: Vec<simodels::coverart::CoverArt>,
         }
     }
 
@@ -28,7 +28,7 @@ pub mod response {
         #[derive(Debug, Default, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
         pub struct Response {
             pub message: String,
-            pub data: Vec<icarus_models::coverart::CoverArt>,
+            pub data: Vec<simodels::coverart::CoverArt>,
         }
     }
 }
@@ -68,21 +68,21 @@ pub mod endpoint {
                 let song_id = payload.song_id;
                 match crate::repo::song::get_song(&pool, &song_id).await {
                     Ok(song) => {
-                        let directory = icarus_envy::environment::get_root_directory().value;
+                        let directory = sienvy::environment::get_root_directory().value;
                         let file_type =
-                            icarus_meta::detection::coverart::file_type_from_data(&data).unwrap();
+                            simeta::detection::coverart::file_type_from_data(&data).unwrap();
                         let coverart_type = if file_type.file_type
-                            == icarus_meta::detection::coverart::constants::JPEG_TYPE
+                            == simeta::detection::coverart::constants::JPEG_TYPE
                         {
-                            icarus_models::types::CoverArtType::JpegExtension
+                            simodels::types::CoverArtType::JpegExtension
                         } else if file_type.file_type
-                            == icarus_meta::detection::coverart::constants::JPG_TYPE
+                            == simeta::detection::coverart::constants::JPG_TYPE
                         {
-                            icarus_models::types::CoverArtType::JpgExtension
+                            simodels::types::CoverArtType::JpgExtension
                         } else if file_type.file_type
-                            == icarus_meta::detection::coverart::constants::PNG_TYPE
+                            == simeta::detection::coverart::constants::PNG_TYPE
                         {
-                            icarus_models::types::CoverArtType::PngExtension
+                            simodels::types::CoverArtType::PngExtension
                         } else {
                             response.message = String::from("Invalid CoverArt type");
                             return (
@@ -91,13 +91,11 @@ pub mod endpoint {
                             );
                         };
                         let filename =
-                            icarus_models::coverart::generate_filename(coverart_type, true)
-                                .unwrap();
+                            simodels::coverart::generate_filename(coverart_type, true).unwrap();
 
-                        let mut coverart =
-                            icarus_models::coverart::init::init_coverart_dir_and_filename(
-                                &directory, &filename,
-                            );
+                        let mut coverart = simodels::coverart::init::init_coverart_dir_and_filename(
+                            &directory, &filename,
+                        );
                         coverart.title = song.album.clone();
                         coverart.file_type = file_type.file_type;
                         coverart.data = data;
@@ -200,23 +198,23 @@ pub mod endpoint {
         axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     ) -> (axum::http::StatusCode, axum::response::Response) {
         match repo::coverart::get_coverart(&pool, &id).await {
-            Ok(coverart) => match icarus_models::coverart::io::to_data(&coverart) {
+            Ok(coverart) => match simodels::coverart::io::to_data(&coverart) {
                 Ok(data) => {
                     let (file_type, img_type) =
-                        match icarus_meta::detection::coverart::file_type_from_data(&data) {
+                        match simeta::detection::coverart::file_type_from_data(&data) {
                             Ok(file_type) => {
                                 if file_type.file_type
-                                    == icarus_meta::detection::coverart::constants::JPEG_TYPE
+                                    == simeta::detection::coverart::constants::JPEG_TYPE
                                 {
-                                    (file_type, icarus_models::types::CoverArtType::JpegExtension)
+                                    (file_type, simodels::types::CoverArtType::JpegExtension)
                                 } else if file_type.file_type
-                                    == icarus_meta::detection::coverart::constants::JPG_TYPE
+                                    == simeta::detection::coverart::constants::JPG_TYPE
                                 {
-                                    (file_type, icarus_models::types::CoverArtType::JpgExtension)
+                                    (file_type, simodels::types::CoverArtType::JpgExtension)
                                 } else if file_type.file_type
-                                    == icarus_meta::detection::coverart::constants::PNG_TYPE
+                                    == simeta::detection::coverart::constants::PNG_TYPE
                                 {
-                                    (file_type, icarus_models::types::CoverArtType::PngExtension)
+                                    (file_type, simodels::types::CoverArtType::PngExtension)
                                 } else {
                                     return (
                                         axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -235,8 +233,7 @@ pub mod endpoint {
                     let bytes = axum::body::Bytes::from(data);
                     let mut response = bytes.into_response();
                     let headers = response.headers_mut();
-                    let filename =
-                        icarus_models::coverart::generate_filename(img_type, true).unwrap();
+                    let filename = simodels::coverart::generate_filename(img_type, true).unwrap();
                     headers.insert(
                         axum::http::header::CONTENT_TYPE,
                         file_type.mime.parse().unwrap(),

@@ -5,7 +5,7 @@ pub mod connection_settings {
 }
 
 pub async fn create_pool() -> Result<sqlx::PgPool, sqlx::Error> {
-    let database_url = icarus_envy::environment::get_db_url().value;
+    let database_url = sienvy::environment::get_db_url().value;
     println!("Database url: {database_url}");
 
     PgPoolOptions::new()

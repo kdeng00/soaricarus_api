@@ -102,9 +102,9 @@ pub mod response {
 mod helper {
     pub fn is_coverart_file_type_valid(file_type: &String) -> bool {
         let valid_file_types = vec![
-            String::from(icarus_meta::detection::coverart::constants::JPEG_TYPE),
-            String::from(icarus_meta::detection::coverart::constants::JPG_TYPE),
-            String::from(icarus_meta::detection::coverart::constants::PNG_TYPE),
+            String::from(simeta::detection::coverart::constants::JPEG_TYPE),
+            String::from(simeta::detection::coverart::constants::JPG_TYPE),
+            String::from(simeta::detection::coverart::constants::PNG_TYPE),
         ];
 
         for valid_file_type in valid_file_types {
@@ -150,18 +150,17 @@ pub mod endpoint {
                 let content_type = field.content_type().unwrap().to_string();
                 let data = field.bytes().await.unwrap();
                 let raw_data = data.to_vec();
-                let file_type =
-                    match icarus_meta::detection::coverart::file_type_from_data(&raw_data) {
-                        Ok(file_type) => file_type,
-                        Err(err) => {
-                            eprintln!("Error: {err:?}");
-                            response.message = err.to_string();
-                            return (
-                                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                                axum::Json(response),
-                            );
-                        }
-                    };
+                let file_type = match simeta::detection::coverart::file_type_from_data(&raw_data) {
+                    Ok(file_type) => file_type,
+                    Err(err) => {
+                        eprintln!("Error: {err:?}");
+                        response.message = err.to_string();
+                        return (
+                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                            axum::Json(response),
+                        );
+                    }
+                };
 
                 if !super::helper::is_coverart_file_type_valid(&file_type.file_type) {
                     response.message = format!("CoverArt file type not supported: {file_type:?}");
@@ -318,8 +317,7 @@ pub mod endpoint {
     ) -> (axum::http::StatusCode, axum::response::Response) {
         match repo::coverart::get_coverart_queue_data_with_id(&pool, &id).await {
             Ok(data) => {
-                let file_type =
-                    icarus_meta::detection::coverart::file_type_from_data(&data).unwrap();
+                let file_type = simeta::detection::coverart::file_type_from_data(&data).unwrap();
                 let bytes = axum::body::Bytes::from(data);
                 let mut response = bytes.into_response();
                 let headers = response.headers_mut();
@@ -329,25 +327,20 @@ pub mod endpoint {
                 );
 
                 let coverart_type = if file_type.file_type
-                    == icarus_meta::detection::coverart::constants::JPEG_TYPE
+                    == simeta::detection::coverart::constants::JPEG_TYPE
                 {
-                    icarus_models::types::CoverArtType::JpegExtension
-                } else if file_type.file_type
-                    == icarus_meta::detection::coverart::constants::JPG_TYPE
-                {
-                    icarus_models::types::CoverArtType::JpgExtension
-                } else if file_type.file_type
-                    == icarus_meta::detection::coverart::constants::PNG_TYPE
-                {
-                    icarus_models::types::CoverArtType::PngExtension
+                    simodels::types::CoverArtType::JpegExtension
+                } else if file_type.file_type == simeta::detection::coverart::constants::JPG_TYPE {
+                    simodels::types::CoverArtType::JpgExtension
+                } else if file_type.file_type == simeta::detection::coverart::constants::PNG_TYPE {
+                    simodels::types::CoverArtType::PngExtension
                 } else {
                     return (
                         axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                         axum::response::Response::default(),
                     );
                 };
-                let filename =
-                    icarus_models::coverart::generate_filename(coverart_type, true).unwrap();
+                let filename = simodels::coverart::generate_filename(coverart_type, true).unwrap();
                 headers.insert(
                     axum::http::header::CONTENT_DISPOSITION,
                     format!("attachment; filename=\"{filename}\"")

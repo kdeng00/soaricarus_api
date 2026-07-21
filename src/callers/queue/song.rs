@@ -97,9 +97,9 @@ pub mod response {
 }
 
 pub async fn is_song_valid(data: &[u8]) -> Result<bool, std::io::Error> {
-    match icarus_meta::detection::song::file_type_from_data(data) {
+    match simeta::detection::song::file_type_from_data(data) {
         Ok(file_type) => {
-            if file_type.file_type == icarus_meta::detection::song::constants::FLAC_TYPE {
+            if file_type.file_type == simeta::detection::song::constants::FLAC_TYPE {
                 Ok(true)
             } else {
                 Ok(false)

@@ -36,8 +36,8 @@ pub mod request {
                     || !self.song_queue_id.is_nil()
             }
 
-            pub fn to_song(&self) -> icarus_models::song::Song {
-                icarus_models::song::Song {
+            pub fn to_song(&self) -> simodels::song::Song {
+                simodels::song::Song {
                     id: uuid::Uuid::nil(),
                     title: self.title.clone(),
                     artist: self.artist.clone(),
@@ -71,7 +71,7 @@ pub mod response {
         #[derive(Debug, Default, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
         pub struct Response {
             pub message: String,
-            pub data: Vec<icarus_models::song::Song>,
+            pub data: Vec<simodels::song::Song>,
         }
     }
 
@@ -79,15 +79,15 @@ pub mod response {
         #[derive(Debug, Default, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
         pub struct Response {
             pub message: String,
-            pub data: Vec<icarus_models::song::Song>,
+            pub data: Vec<simodels::song::Song>,
         }
     }
 
     pub mod delete_song {
         #[derive(Debug, Default, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
         pub struct SongAndCoverArt {
-            pub song: icarus_models::song::Song,
-            pub coverart: icarus_models::coverart::CoverArt,
+            pub song: simodels::song::Song,
+            pub coverart: simodels::coverart::CoverArt,
         }
 
         #[derive(Debug, Default, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
@@ -134,12 +134,10 @@ pub mod endpoint {
 
         if payload.is_valid() {
             let mut song = payload.to_song();
-            song.filename = icarus_models::song::generate_filename(
-                icarus_models::types::MusicType::FlacExtension,
-                true,
-            )
-            .unwrap();
-            song.directory = icarus_envy::environment::get_root_directory().value;
+            song.filename =
+                simodels::song::generate_filename(simodels::types::MusicType::FlacExtension, true)
+                    .unwrap();
+            song.directory = sienvy::environment::get_root_directory().value;
 
             match repo_queue::song::get_data(&pool, &payload.song_queue_id).await {
                 Ok(data) => {
@@ -340,7 +338,7 @@ pub mod endpoint {
         axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     ) -> (axum::http::StatusCode, axum::response::Response) {
         match repo::song::get_song(&pool, &id).await {
-            Ok(song) => match icarus_models::song::io::to_data(&song) {
+            Ok(song) => match simodels::song::io::to_data(&song) {
                 Ok(data) => {
                     let bytes = axum::body::Bytes::from(data);
                     let mut response = bytes.into_response();

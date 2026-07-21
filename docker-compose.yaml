@@ -6,7 +6,7 @@ services:
     build:
       context: .
       ssh: ["default"]
-    container_name: icarus
+    container_name: soaricarus
     ports:
       - "8000:8000"
     env_file:
@@ -15,13 +15,13 @@ services:
       main_db:
         condition: service_healthy
     networks:
-      - icarus-network
+      - soaricarus-network
     restart: unless-stopped
 
   # --- Web API auth ---
   auth_api:
     build:
-      context: ../icarus_auth # IMPORTANT: Relative path to the local checkout of your web API repo (containing the Dockerfile)
+      context: ../soaricarus_auth # IMPORTANT: Relative path to the local checkout of your web API repo (containing the Dockerfile)
       ssh: ["default"]
       dockerfile: Dockerfile # Optional: Specify if your Dockerfile has a non-standard name
     container_name: auth_api
@@ -29,12 +29,12 @@ services:
     ports:
       - "8001:8001"
     env_file:
-     - ../icarus_auth/.env
+     - ../soaricarus_auth/.env
     depends_on:
       auth_db:
         condition: service_healthy
     networks:
-      - icarus-network
+      - soaricarus-network
     # Optional: Mount local code for development (live reload)
     # volumes:
     #  - ./path/to/your/web-api-repo:/app
@@ -55,18 +55,18 @@ services:
       - auth_api
       - auth_db
     networks:
-      - icarus-network
+      - soaricarus-network
 
 
   # PostgreSQL Database Service
   main_db:
     image: postgres:18.4-alpine
-    container_name: icarus_db
+    container_name: soaricarus_db
     environment:
       # These MUST match the user, password, and database name in the DATABASE_URL above
-      POSTGRES_USER: ${POSTGRES_MAIN_USER:-icarus}
+      POSTGRES_USER: ${POSTGRES_MAIN_USER:-soaricarus}
       POSTGRES_PASSWORD: ${POSTGRES_MAIN_PASSWORD:-password}
-      POSTGRES_DB: ${POSTGRES_MAIN_DB:-icarus_db}
+      POSTGRES_DB: ${POSTGRES_MAIN_DB:-soaricarus_db}
     volumes:
       # Persist database data using a named volume
       - postgres_data:/var/lib/postgresql
@@ -81,17 +81,17 @@ services:
         start_period: 10s
     restart: always
     networks:
-      - icarus-network
+      - soaricarus-network
 
-  # --- icarus web auth api db ---
+  # --- soaricarus web auth api db ---
   auth_db:
     image: postgres:18.4-alpine
-    container_name: icarus_auth_db
+    container_name: soaricarus_auth_db
     environment:
       # These MUST match the user, password, and database name in the DATABASE_URL above
-      POSTGRES_USER: ${POSTGRES_AUTH_USER:-icarus_op}
+      POSTGRES_USER: ${POSTGRES_AUTH_USER:-soaricarus_op}
       POSTGRES_PASSWORD: ${POSTGRES_AUTH_PASSWORD:-password}
-      POSTGRES_DB: ${POSTGRES_AUTH_DB:-icarus_auth_db}
+      POSTGRES_DB: ${POSTGRES_AUTH_DB:-soaricarus_auth_db}
     volumes:
       # Persist database data using a named volume
       - postgres_data_auth:/var/lib/postgresql
@@ -106,7 +106,7 @@ services:
         start_period: 10s
     restart: always
     networks:
-      - icarus-network
+      - soaricarus-network
 
 volumes:
   postgres_data:
@@ -115,5 +115,5 @@ volumes:
     driver: local # Use the default local driver
 
 networks:
-  icarus-network:
+  soaricarus-network:
     driver: bridge
