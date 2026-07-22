@@ -56,6 +56,22 @@ services:
       - auth_db
     networks:
       - soaricarus-network
+  # --- storage service ---
+  maze:
+    image: dxflrs/garage:v2.3.0
+    container_name: maze
+    restart: unless-stopped
+    ports:
+      - "3900:3900"  # S3 API
+      - "3901:3901"  # RPC for cluster communication
+      - "3902:3902"  # S3 web interface
+      - "3903:3903"  # Admin API
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - object_data:/var/lib/garage/meta
+      - object_data:/var/lib/garage/data
+    env_file:
+      - .env
 
 
   # PostgreSQL Database Service
@@ -112,6 +128,8 @@ volumes:
   postgres_data:
     driver: local # Use the default local driver
   postgres_data_auth:
+    driver: local # Use the default local driver
+  object_data:
     driver: local # Use the default local driver
 
 networks:
