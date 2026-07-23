@@ -30,6 +30,10 @@ RUN --mount=type=ssh mkdir src && \
 COPY src ./src
 COPY .env ./.env
 COPY migrations ./migrations
+COPY scripts/init-garage.sh /scripts/init-garage.sh
+
+# Make it executable
+RUN chmod +x /scripts/init-garage.sh
 
 RUN --mount=type=ssh \
     cargo build --release --quiet

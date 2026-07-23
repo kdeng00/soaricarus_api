@@ -80,6 +80,28 @@ services:
     networks:
       - soaricarus-network
 
+ # --- Storage Initialization ---
+  maze-init:
+    # image: dxflrs/garage:v2.3.0
+    image: alpine:latest
+    container_name: maze-init
+    depends_on:
+      maze:
+        condition: service_started
+    volumes:
+      - ./scripts:/scripts:ro
+      - object_data:/var/lib/garage
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - GARAGE_RPC_SECRET=${GARAGE_RPC_SECRET}
+    env_file:
+      - .env
+    # entrypoint: ["/bin/bash"]
+    command: ["sh", "/scripts/init-garage.sh"]
+    restart: "no"  # Run once and exit
+    networks:
+      - soaricarus-network
 
   # PostgreSQL Database Service
   main_db:
