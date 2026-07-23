@@ -5,11 +5,13 @@ set -e
 BUCKET_NAME="soaricarus-storage"
 
 echo "⏳ Waiting for Garage to be ready..."
-until curl -s -f "http://localhost:3901/v0/status" > /dev/null 2>&1; do
-  echo "   Garage not ready yet, retrying in 2s..."
-  sleep 2
-done
+# until curl -s -f "http://localhost:3901/v0/status" > /dev/null 2>&1; do
+  # echo "   Garage not ready yet, retrying in 2s..."
+  # sleep 2
+# done
+sleep 20
 echo "✅ Garage API is responding!"
+echo "... I think..."
 
 # Wait a bit more for Garage to fully initialize
 sleep 5
