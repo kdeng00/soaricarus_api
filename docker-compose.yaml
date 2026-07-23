@@ -68,10 +68,17 @@ services:
       - "3903:3903"  # Admin API
     volumes:
       - ./garage.toml:/etc/garage.toml:ro
-      - object_data:/var/lib/garage/meta
-      - object_data:/var/lib/garage/data
+      - object_data:/var/lib/garage
     env_file:
       - .env
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3901/v0/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - soaricarus-network
 
 
   # PostgreSQL Database Service
