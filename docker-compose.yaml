@@ -83,7 +83,7 @@ services:
  # --- Storage Initialization ---
   maze-init:
     # image: dxflrs/garage:v2.3.0
-    image: docker:latest
+    image: docker:dind
     container_name: maze-init
     depends_on:
       maze:
@@ -91,6 +91,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock  # Mount Docker socket
       - object_data:/var/lib/garage
+      - ./scripts:/scripts:ro  # ← ADD THIS - mount the scripts directory
     environment:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
