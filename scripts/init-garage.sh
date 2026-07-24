@@ -4,7 +4,8 @@ set -e
 BUCKET_NAME="soaricarus-storage"
 
 echo "⏳ Waiting for Garage to be ready..."
-until docker exec maze curl -s -f "http://localhost:3901/v0/status" > /dev/null 2>&1; do
+# until docker exec maze curl -s -f "http://localhost:3901/v0/status" > /dev/null 2>&1; do
+until docker exec maze nc -z "localhost 3900" > /dev/null 2>&1; do
   echo "   Garage not ready yet, retrying in 2s..."
   sleep 2
 done
