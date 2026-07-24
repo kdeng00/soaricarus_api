@@ -60,9 +60,7 @@ services:
       - soaricarus-network
   # --- storage service ---
   maze:
-    build:
-      context: ./garage
-      dockerfile: Dockerfile
+    image: dxflrs/garage:v2.3.0
     container_name: maze
     restart: unless-stopped
     ports:
@@ -72,6 +70,7 @@ services:
       - "3903:3903"  # Admin API
     volumes:
       - ./garage.toml:/etc/garage.toml:ro
+      - ./garage/entrypoint.sh:/entrypoint.sh:ro
       - shared_credentials:/shared
       - object_data:/var/lib/garage
       # - ./scripts:/scripts:ro  # ← ADD THIS - mount the scripts directory
@@ -82,10 +81,13 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - GARAGE_RPC_SECRET=${GARAGE_RPC_SECRET}
       - BUCKET_NAME=${S3_BUCKET_NAME}
+    entrypoint: ["/entrypoint.sh"]
+    command: []
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3901/v0/status || exit 1"]
+      # test: ["CMD-SHELL", "curl -f http://localhost:3901/v0/status || exit 1"]
       # test: ["CMD-SHELL", "echo 'What is to be done?'"]
       # test: ["CMD-SHELL", "nc -z localhost 3900 || exit 1"]
+      test: ["CMD-SHELL", "/garage status | grep -q 'Health: ok' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
