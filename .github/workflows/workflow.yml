@@ -98,14 +98,14 @@ jobs:
           SECRET_MAIN_KEY: ${{ secrets.TOKEN_SECRET_KEY }}
           SSH_AUTH_SOCK: ${{ env.SSH_AUTH_SOCK }}
           ROOT_DIRECTORY: "/tmp"
-          AWS_ACCESS_KEY_ID: ${{ secrets.GARAGE_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.GARAGE_SECRET }}
+          AWS_ACCESS_KEY_ID: "${{ secrets.GARAGE_KEY_ID }}"
+          AWS_SECRET_ACCESS_KEY: "${{ secrets.GARAGE_SECRET }}"
           AWS_DEFAULT_REGION: "${{ env.AWS_DEFAULT_REGION }}"
-          GARAGE_DEFAULT_ACCESS_KEY: ${{ secrets.GARAGE_KEY_ID }}
-          GARAGE_DEFAULT_SECRET_KEY: ${{ secrets.GARAGE_SECRET }}
+          GARAGE_DEFAULT_ACCESS_KEY: "${{ secrets.GARAGE_KEY_ID }}"
+          GARAGE_DEFAULT_SECRET_KEY: "${{ secrets.GARAGE_SECRET }}"
           GARAGE_S3_REGION: "${{ env.AWS_DEFAULT_REGION }}"
-          S3_BUCKET_NAME: "soaricarus-ci-bucket"
-          S3_ENDPOINT_URL: "http://localhost:3900"
+          S3_BUCKET_NAME: ${{ env.S3_BUCKET }}
+          S3_ENDPOINT_URL: "${{ secrets.S3_CI_ENDPOINT_URL }}"
           AWS_S3_FORCE_PATH_STYLE: "true"
         run: |
           mkdir -p ~/.ssh
