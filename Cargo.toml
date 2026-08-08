@@ -1,6 +1,6 @@
 [package]
 name = "soaricarus_api"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT"
@@ -29,6 +29,7 @@ utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 simeta = { git = "ssh://git@git.kundeng.us/phoenix/simeta.git", tag = "v0.6.1-main-b690995806-680" }
 simodels = { git = "ssh://git@git.kundeng.us/phoenix/simodels.git", tag = "v0.11.3-main-fe9d101bd0-111" }
 sienvy = { git = "ssh://git@git.kundeng.us/phoenix/sienvy.git", tag = "v0.8.0-main-d06c8fdf49-006" }
+labyrinth = { git = "ssh://git@git.kundeng.us/phoenix/labyrinth.git", tag = "v0.0.2-1-84f98521c8-928" }
 
 [dev-dependencies]
 common-multipart-rfc7578 = { version = "0.7.0" }

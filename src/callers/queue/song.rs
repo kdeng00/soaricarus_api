@@ -156,6 +156,7 @@ pub mod endpoint {
                     );
 
                     let raw_data: Vec<u8> = data.to_vec();
+                    let copied_raw_data = data.to_vec();
                     match super::is_song_valid(&raw_data).await {
                         Ok(valid) => {
                             if valid {
@@ -169,6 +170,62 @@ pub mod endpoint {
                                 {
                                     Ok(queued_song) => {
                                         results.push(queued_song);
+                                        println!("Uploading to bucket");
+
+                                        let s3_endpoint_url =
+                                            sienvy::environment::get_env("S3_ENDPOINT_URL");
+                                        let bucket_name =
+                                            sienvy::environment::get_env("S3_BUCKET_NAME");
+                                        let region =
+                                            sienvy::environment::get_env("GARAGE_S3_REGION");
+                                        let access_key_id = sienvy::environment::get_env(
+                                            "GARAGE_DEFAULT_ACCESS_KEY",
+                                        );
+                                        let secret_key = sienvy::environment::get_env(
+                                            "GARAGE_DEFAULT_SECRET_KEY",
+                                        );
+
+                                        let lab_config = labyrinth::config::Config {
+                                            url: s3_endpoint_url.value,
+                                            bucket: bucket_name.value,
+                                            region: region.value,
+                                            access_key_id: access_key_id.value,
+                                            secret_key: secret_key.value,
+                                        };
+
+                                        println!("Labyrinth config: {lab_config:?}");
+
+                                        let lr = labyrinth::Labyrinth { config: lab_config };
+                                        let data = labyrinth::Data {
+                                            raw_data: copied_raw_data,
+                                            ..Default::default()
+                                        };
+                                        let filename = simodels::song::generate_filename(
+                                            simodels::types::MusicType::FlacExtension,
+                                            true,
+                                        )
+                                        .unwrap();
+                                        println!("Filename: {filename:?}");
+                                        let file_path = format!("queued/song/{filename}");
+                                        println!("Path: {file_path:?}");
+
+                                        match lr.upload(&file_path, &data).await {
+                                            Ok(res) => {
+                                                println!("Result: {res:?}");
+                                            }
+                                            Err(err) => match err {
+                                                labyrinth::Error::Info(err_str) => {
+                                                    eprintln!("Error: {:?}", err_str);
+                                                    response.message = err_str.to_string();
+                                                    return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, axum::Json(response));
+                                                }
+                                                labyrinth::Error::SError(err_s) => {
+                                                    eprintln!("Error: {:?}", err_s);
+                                                    response.message = err_s.to_string();
+                                                    return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, axum::Json(response));
+                                                }
+                                            },
+                                        }
                                     }
                                     Err(err) => {
                                         response.message = err.to_string();
