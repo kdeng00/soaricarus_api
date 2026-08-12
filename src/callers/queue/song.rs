@@ -212,6 +212,31 @@ pub mod endpoint {
                                         match lr.upload(&file_path, &data).await {
                                             Ok(res) => {
                                                 println!("Result: {res:?}");
+
+                                                println!("Downloading file");
+                                                match lr.download(&file_path).await {
+                                                    Ok(res) => {
+                                                        if res.is_empty() {
+                                                            println!("This should not be empty");
+                                                        } else {
+                                                            println!("Size: {:?}", res.len());
+                                                            println!("Going to delete file");
+
+                                                            match lr.delete(&file_path).await {
+                                                                Ok(res) => {
+                                                                    println!("Result: {res:?}");
+                                                                    println!("Deleted");
+                                                                }
+                                                                Err(err) => {
+                                                                    eprintln!("Error: {err:?}");
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    Err(err) => {
+                                                        eprintln!("Error: {err:?}");
+                                                    }
+                                                }
                                             }
                                             Err(err) => match err {
                                                 labyrinth::Error::Info(err_str) => {

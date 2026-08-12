@@ -1937,8 +1937,8 @@ checksum = "a4933f3f57a8e9d9da04db23fb153356ecaf00cbd14aee46279c33dc80925c37"
 
 [[package]]
 name = "labyrinth"
-version = "0.0.2"
-source = "git+ssh://git@git.kundeng.us/phoenix/labyrinth.git?tag=v0.0.2-1-84f98521c8-928#84f98521c8c98693e422db48eb0aa7c124c2586b"
+version = "0.0.4"
+source = "git+ssh://git@git.kundeng.us/phoenix/labyrinth.git?tag=v0.0.4#f406ed196145bb667587c13f4fd0866a1fa6e915"
 dependencies = [
  "aws-config",
  "aws-sdk-s3",

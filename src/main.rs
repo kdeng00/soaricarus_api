@@ -25,9 +25,6 @@ async fn main() {
 mod tests {
     use std::io::Write;
 
-    use common_multipart_rfc7578::client::multipart::{
-        Body as MultipartBody, Form as MultipartForm,
-    };
     use tower::ServiceExt;
 
     use crate::db;
@@ -193,269 +190,318 @@ mod tests {
 
         pub async fn song_queue_req(
             app: &axum::Router,
-        ) -> Result<axum::response::Response, std::convert::Infallible> {
+        ) -> Result<axum::response::Response, axum::http::Error> {
             // Create multipart form
-            let mut form = MultipartForm::default();
-            let _ = form.add_file("flac", "tests/I/track01.flac");
-
-            // Create request
-            let content_type = form.content_type();
-            let body = MultipartBody::from(form);
-            let req = axum::http::Request::builder()
-                .method(axum::http::Method::POST)
-                .uri(crate::callers::queue::endpoints::QUEUESONG)
-                .header(axum::http::header::CONTENT_TYPE, content_type)
-                .header(
-                    axum::http::header::AUTHORIZATION,
-                    super::bearer_auth().await,
-                )
-                .body(axum::body::Body::from_stream(body))
-                .unwrap();
-            app.clone().oneshot(req).await
+            match run_post(
+                Some(ReqBody::Multipart((
+                    "flac".to_string(),
+                    "tests/I/track01.flac".to_string(),
+                ))),
+                crate::callers::queue::endpoints::QUEUESONG,
+                axum::http::Method::POST,
+                true,
+            )
+            .await
+            {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
         }
 
         pub async fn song_queue_link_req(
             app: &axum::Router,
             song_queue_id: &uuid::Uuid,
             user_id: &uuid::Uuid,
-        ) -> Result<axum::response::Response, std::convert::Infallible> {
+        ) -> Result<axum::response::Response, axum::http::Error> {
             let payload =
                 super::payload_data::link_user_to_queued_song(song_queue_id, user_id).await;
 
-            let req = axum::http::Request::builder()
-                .method(axum::http::Method::PATCH)
-                .uri(crate::callers::queue::endpoints::QUEUESONGLINKUSERID)
-                .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .header(
-                    axum::http::header::AUTHORIZATION,
-                    super::bearer_auth().await,
-                )
-                .body(axum::body::Body::from(payload.to_string()))
-                .unwrap();
-
-            app.clone().oneshot(req).await
+            match run_post(
+                Some(ReqBody::Json(payload)),
+                crate::callers::queue::endpoints::QUEUESONGLINKUSERID,
+                axum::http::Method::PATCH,
+                true,
+            )
+            .await
+            {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
         }
 
         pub async fn fetch_queue_req(
             app: &axum::Router,
-        ) -> Result<axum::response::Response, std::convert::Infallible> {
-            let fetch_req = axum::http::Request::builder()
-                .method(axum::http::Method::GET)
-                .uri(crate::callers::queue::endpoints::NEXTQUEUESONG)
-                .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .header(
-                    axum::http::header::AUTHORIZATION,
-                    super::bearer_auth().await,
-                )
-                .body(axum::body::Body::empty())
-                .unwrap();
-            app.clone().oneshot(fetch_req).await
+        ) -> Result<axum::response::Response, axum::http::Error> {
+            match run_post(
+                None,
+                crate::callers::queue::endpoints::NEXTQUEUESONG,
+                axum::http::Method::GET,
+                false,
+            )
+            .await
+            {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
         }
 
         pub async fn fetch_metadata_queue_req(
             app: &axum::Router,
             id: &uuid::Uuid,
-        ) -> Result<axum::response::Response, std::convert::Infallible> {
+        ) -> Result<axum::response::Response, axum::http::Error> {
             let uri = format!(
                 "{}?id={}",
                 crate::callers::queue::endpoints::QUEUEMETADATA,
                 id
             );
 
-            let req = axum::http::Request::builder()
-                .method(axum::http::Method::GET)
-                .uri(uri)
-                .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .header(
-                    axum::http::header::AUTHORIZATION,
-                    super::bearer_auth().await,
-                )
-                .body(axum::body::Body::empty())
-                .unwrap();
-
-            app.clone().oneshot(req).await
+            match run_post(None, &uri, axum::http::Method::GET, false).await {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
         }
 
         pub async fn fetch_queue_data_req(
             app: &axum::Router,
             id: &uuid::Uuid,
-        ) -> Result<axum::response::Response, std::convert::Infallible> {
+        ) -> Result<axum::response::Response, axum::http::Error> {
             let raw_uri = String::from(crate::callers::queue::endpoints::QUEUESONGDATA);
             let end_index = raw_uri.len() - 4;
             let mut uri: String = (&raw_uri[..end_index]).to_string();
             uri += &id.to_string();
-            let req = axum::http::Request::builder()
-                .method(axum::http::Method::GET)
-                .uri(uri)
-                .header(
-                    axum::http::header::CONTENT_TYPE,
-                    simeta::detection::song::constants::mime::FLAC,
-                )
-                .header(
-                    axum::http::header::AUTHORIZATION,
-                    super::bearer_auth().await,
-                )
-                .body(axum::body::Body::empty())
-                .unwrap();
 
-            app.clone().oneshot(req).await
+            match run_post(None, &uri, axum::http::Method::GET, false).await {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
         }
 
         pub async fn upload_coverart_queue_req(
             app: &axum::Router,
-        ) -> Result<axum::response::Response, std::convert::Infallible> {
-            let mut form = MultipartForm::default();
-            let _ = form.add_file(
-                simeta::detection::coverart::constants::JPEG_TYPE,
-                "tests/I/Coverart-1.jpg",
-            );
-
-            // Create request
-            let content_type = form.content_type();
-            let body = MultipartBody::from(form);
-
-            let req = axum::http::Request::builder()
-                .method(axum::http::Method::POST)
-                .uri(crate::callers::queue::endpoints::QUEUECOVERART)
-                .header(axum::http::header::CONTENT_TYPE, content_type)
-                .header(
-                    axum::http::header::AUTHORIZATION,
-                    super::bearer_auth().await,
-                )
-                .body(axum::body::Body::from_stream(body))
-                .unwrap();
-
-            app.clone().oneshot(req).await
+        ) -> Result<axum::response::Response, axum::http::Error> {
+            match run_post(
+                Some(ReqBody::Multipart((
+                    simeta::detection::coverart::constants::JPEG_TYPE.to_string(),
+                    "tests/I/Coverart-1.jpg".to_string(),
+                ))),
+                crate::callers::queue::endpoints::QUEUECOVERART,
+                axum::http::Method::POST,
+                true,
+            )
+            .await
+            {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
         }
 
         pub async fn queue_metadata_req(
             app: &axum::Router,
             song_queue_id: &uuid::Uuid,
-        ) -> Result<axum::response::Response, std::convert::Infallible> {
+        ) -> Result<axum::response::Response, axum::http::Error> {
             let payload = super::payload_data::queue_metadata(&song_queue_id).await;
 
-            let req = axum::http::Request::builder()
-                .method(axum::http::Method::POST)
-                .uri(crate::callers::queue::endpoints::QUEUEMETADATA)
-                .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .header(
-                    axum::http::header::AUTHORIZATION,
-                    super::bearer_auth().await,
-                )
-                .body(axum::body::Body::from(payload.to_string()))
-                .unwrap();
-
-            app.clone().oneshot(req).await
+            match run_post(
+                Some(ReqBody::Json(payload)),
+                crate::callers::queue::endpoints::QUEUEMETADATA,
+                axum::http::Method::POST,
+                true,
+            )
+            .await
+            {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
         }
 
         pub async fn coverart_queue_song_queue_link_req(
             app: &axum::Router,
             coverart_id: &uuid::Uuid,
             song_queue_id: &uuid::Uuid,
-        ) -> Result<axum::response::Response, std::convert::Infallible> {
+        ) -> Result<axum::response::Response, axum::http::Error> {
             let payload = super::payload_data::link_queued_coverart_to_queued_song(
                 song_queue_id,
                 coverart_id,
             )
             .await;
-            let req = axum::http::Request::builder()
-                .method(axum::http::Method::PATCH)
-                .uri(crate::callers::queue::endpoints::QUEUECOVERARTLINK)
-                .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .header(
-                    axum::http::header::AUTHORIZATION,
-                    super::bearer_auth().await,
-                )
-                .body(axum::body::Body::from(payload.to_string()))
-                .unwrap();
 
-            app.clone().oneshot(req).await
+            match run_post(
+                Some(ReqBody::Json(payload)),
+                crate::callers::queue::endpoints::QUEUECOVERARTLINK,
+                axum::http::Method::PATCH,
+                true,
+            )
+            .await
+            {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
         }
 
         pub async fn create_coverart_req(
             app: &axum::Router,
             song_id: &uuid::Uuid,
             coverart_id: &uuid::Uuid,
-        ) -> Result<axum::response::Response, std::convert::Infallible> {
+        ) -> Result<axum::response::Response, axum::http::Error> {
             let payload = super::payload_data::create_coverart(song_id, coverart_id).await;
 
-            let req = axum::http::Request::builder()
-                .method(axum::http::Method::POST)
-                .uri(crate::callers::endpoints::CREATECOVERART)
-                .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .header(
-                    axum::http::header::AUTHORIZATION,
-                    super::bearer_auth().await,
-                )
-                .body(axum::body::Body::from(payload.to_string()))
-                .unwrap();
-            app.clone().oneshot(req).await
+            match run_post(
+                Some(ReqBody::Json(payload)),
+                crate::callers::endpoints::CREATECOVERART,
+                axum::http::Method::POST,
+                true,
+            )
+            .await
+            {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
         }
 
         pub async fn create_song_req(
             app: &axum::Router,
             song_queue_id: &uuid::Uuid,
             user_id: &uuid::Uuid,
-        ) -> Result<axum::response::Response, std::convert::Infallible> {
+        ) -> Result<axum::response::Response, axum::http::Error> {
             let payload = super::payload_data::create_song(song_queue_id, user_id).await;
 
-            let req = axum::http::Request::builder()
-                .method(axum::http::Method::POST)
-                .uri(crate::callers::endpoints::CREATESONG)
-                .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .header(
-                    axum::http::header::AUTHORIZATION,
-                    super::bearer_auth().await,
-                )
-                .body(axum::body::Body::from(payload.to_string()))
-                .unwrap();
-
-            app.clone().oneshot(req).await
+            match run_post(
+                Some(ReqBody::Json(payload)),
+                crate::callers::endpoints::CREATESONG,
+                axum::http::Method::POST,
+                true,
+            )
+            .await
+            {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
         }
 
         pub async fn update_song_queue_status_req(
             app: &axum::Router,
             song_queue_id: &uuid::Uuid,
-        ) -> Result<axum::response::Response, std::convert::Infallible> {
+        ) -> Result<axum::response::Response, axum::http::Error> {
             let payload =
                 super::payload_data::update_song_queue_status_to_ready(song_queue_id).await;
 
-            let req = axum::http::Request::builder()
-                .method(axum::http::Method::PATCH)
-                .uri(crate::callers::queue::endpoints::QUEUESONG)
-                .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .header(
-                    axum::http::header::AUTHORIZATION,
-                    super::bearer_auth().await,
-                )
-                .body(axum::body::Body::from(payload.to_string()))
-                .unwrap();
-
-            app.clone().oneshot(req).await
+            match run_post(
+                Some(ReqBody::Json(payload)),
+                crate::callers::queue::endpoints::QUEUESONG,
+                axum::http::Method::PATCH,
+                true,
+            )
+            .await
+            {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
         }
 
         pub async fn get_queued_coverart(
             app: &axum::Router,
             coverart_queue_id: &uuid::Uuid,
-        ) -> Result<axum::response::Response, std::convert::Infallible> {
+        ) -> Result<axum::response::Response, axum::http::Error> {
             let uri = format!(
                 "{}?id={}",
                 crate::callers::queue::endpoints::QUEUECOVERART,
                 coverart_queue_id
             );
 
-            let req = axum::http::Request::builder()
-                .method(axum::http::Method::GET)
+            match run_post(None, &uri, axum::http::Method::GET, false).await {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
+        }
+
+        pub enum ReqBody {
+            Json(serde_json::Value),
+            Multipart((String, String)),
+        }
+
+        pub async fn run_post(
+            payload: Option<ReqBody>,
+            uri: &str,
+            method: axum::http::Method,
+            has_body: bool,
+        ) -> Result<axum::http::Request<axum::body::Body>, axum::http::Error> {
+            let mut content_type = "application/json; charset=utf-8".to_string();
+            let body = if has_body {
+                assert_eq!(
+                    true,
+                    payload.is_some(),
+                    "Has request body and payload has data"
+                );
+
+                match payload {
+                    Some(p) => match p {
+                        ReqBody::Json(val) => axum::body::Body::from(val.to_string()),
+                        ReqBody::Multipart((t, p)) => {
+                            let mut form = MultipartForm::default();
+                            let _ = form.add_file(t, p);
+
+                            content_type = form.content_type();
+                            let body = MultipartBody::from(form);
+                            axum::body::Body::from_stream(body)
+                        }
+                    },
+                    None => {
+                        eprintln!("This should not empty");
+                        axum::body::Body::empty()
+                    }
+                }
+            } else {
+                axum::body::Body::empty()
+            };
+            match axum::http::Request::builder()
+                .method(method)
                 .uri(uri)
-                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .header(axum::http::header::CONTENT_TYPE, content_type)
                 .header(
                     axum::http::header::AUTHORIZATION,
                     super::bearer_auth().await,
                 )
-                .body(axum::body::Body::empty())
-                .unwrap();
-
-            app.clone().oneshot(req).await
+                .body(body)
+            {
+                Ok(t) => Ok(t),
+                Err(err) => Err(err),
+            }
         }
     }
 
@@ -463,7 +509,7 @@ mod tests {
         // Flow for queueing song
         pub async fn queue_song_flow(
             app: &axum::Router,
-        ) -> Result<(axum::response::Response, uuid::Uuid), std::convert::Infallible> {
+        ) -> Result<(axum::response::Response, uuid::Uuid), axum::http::Error> {
             match super::request::song_queue_req(&app).await {
                 Ok(response) => {
                     let resp = super::util::get_resp_data::<
@@ -506,6 +552,7 @@ mod tests {
                                         Err(err) => Err(err),
                                     }
                                 }
+                                Err(err) => Err(err),
                             }
                         }
                         Err(err) => Err(err),
@@ -519,7 +566,7 @@ mod tests {
         pub async fn queue_coverart_flow(
             app: &axum::Router,
             song_queue_id: &uuid::Uuid,
-        ) -> Result<axum::response::Response, std::convert::Infallible> {
+        ) -> Result<axum::response::Response, axum::http::Error> {
             match super::request::upload_coverart_queue_req(&app).await {
                 Ok(response) => {
                     let resp = super::util::get_resp_data::<
@@ -555,15 +602,17 @@ mod tests {
                                 Err(err) => Err(err),
                             }
                         }
+                        Err(err) => Err(err),
                     }
                 }
+                Err(err) => Err(err),
             }
         }
 
         // Returns coverart response and song_queue_id
         pub async fn queue_song_and_coverart_flow(
             app: &axum::Router,
-        ) -> Result<(axum::response::Response, uuid::Uuid), std::convert::Infallible> {
+        ) -> Result<(axum::response::Response, uuid::Uuid), axum::http::Error> {
             match queue_song_flow(&app).await {
                 Ok((song_response, user_id)) => {
                     let resp = super::util::get_resp_data::<
@@ -931,13 +980,6 @@ mod tests {
                             }
                             let songpath = song.song_path().unwrap();
 
-                            let mut form = MultipartForm::default();
-                            let _ = form.add_file("flac", &songpath);
-
-                            // Create request
-                            let content_type = form.content_type();
-                            let body = MultipartBody::from(form);
-
                             let raw_uri =
                                 String::from(crate::callers::queue::endpoints::QUEUESONGUPDATE);
                             let end_index = raw_uri.len() - 5;
@@ -951,16 +993,17 @@ mod tests {
                             match app
                                 .clone()
                                 .oneshot(
-                                    axum::http::Request::builder()
-                                        .method(axum::http::Method::PATCH)
-                                        .uri(uri)
-                                        .header(axum::http::header::CONTENT_TYPE, content_type)
-                                        .header(
-                                            axum::http::header::AUTHORIZATION,
-                                            bearer_auth().await,
-                                        )
-                                        .body(axum::body::Body::from_stream(body))
-                                        .unwrap(),
+                                    request::run_post(
+                                        Some(request::ReqBody::Multipart((
+                                            "flac".to_string(),
+                                            songpath,
+                                        ))),
+                                        &uri,
+                                        axum::http::Method::PATCH,
+                                        true,
+                                    )
+                                    .await
+                                    .unwrap(),
                                 )
                                 .await
                             {
@@ -1441,16 +1484,14 @@ mod tests {
                                 match app
                                     .clone()
                                     .oneshot(
-                                        axum::http::Request::builder()
-                                            .method(axum::http::Method::GET)
-                                            .uri(uri)
-                                            .header(axum::http::header::CONTENT_TYPE, "image/jpeg")
-                                            .header(
-                                                axum::http::header::AUTHORIZATION,
-                                                bearer_auth().await,
-                                            )
-                                            .body(axum::body::Body::empty())
-                                            .unwrap(),
+                                        request::run_post(
+                                            None,
+                                            &uri,
+                                            axum::http::Method::GET,
+                                            false,
+                                        )
+                                        .await
+                                        .unwrap(),
                                     )
                                     .await
                                 {
@@ -1648,6 +1689,9 @@ mod tests {
                             }
                         }
                     }
+                    Err(err) => {
+                        assert!(false, "Error: {:?}", err);
+                    }
                 }
             }
             Err(err) => {
@@ -1715,13 +1759,14 @@ mod tests {
                         match app
                             .clone()
                             .oneshot(
-                                axum::http::Request::builder()
-                                    .method(axum::http::Method::PATCH)
-                                    .uri(crate::callers::queue::endpoints::QUEUESONGDATAWIPE)
-                                    .header(axum::http::header::CONTENT_TYPE, "application/json")
-                                    .header(axum::http::header::AUTHORIZATION, bearer_auth().await)
-                                    .body(axum::body::Body::from(payload.to_string()))
-                                    .unwrap(),
+                                request::run_post(
+                                    Some(request::ReqBody::Json(payload)),
+                                    crate::callers::queue::endpoints::QUEUESONGDATAWIPE,
+                                    axum::http::Method::PATCH,
+                                    true,
+                                )
+                                .await
+                                .unwrap(),
                             )
                             .await
                         {
@@ -1833,19 +1878,14 @@ mod tests {
                                 match app
                                     .clone()
                                     .oneshot(
-                                        axum::http::Request::builder()
-                                            .method(axum::http::Method::PATCH)
-                                            .uri(crate::callers::queue::endpoints::QUEUECOVERARTDATAWIPE)
-                                            .header(
-                                                axum::http::header::CONTENT_TYPE,
-                                                "application/json",
-                                            )
-                                            .header(
-                                                axum::http::header::AUTHORIZATION,
-                                                bearer_auth().await,
-                                            )
-                                            .body(axum::body::Body::from(payload.to_string()))
-                                            .unwrap(),
+                                        request::run_post(
+                                            Some(request::ReqBody::Json(payload)),
+                                            crate::callers::queue::endpoints::QUEUECOVERARTDATAWIPE,
+                                            axum::http::Method::PATCH,
+                                            true,
+                                        )
+                                        .await
+                                        .unwrap(),
                                     )
                                     .await
                                 {
@@ -1913,15 +1953,8 @@ mod tests {
             match app
                 .clone()
                 .oneshot(
-                    axum::http::Request::builder()
-                        .method(axum::http::Method::GET)
-                        .uri(uri)
-                        .header(axum::http::header::CONTENT_TYPE, "application/json")
-                        .header(
-                            axum::http::header::AUTHORIZATION,
-                            super::bearer_auth().await,
-                        )
-                        .body(axum::body::Body::empty())
+                    super::request::run_post(None, &uri, axum::http::Method::GET, false)
+                        .await
                         .unwrap(),
                 )
                 .await
@@ -1970,15 +2003,8 @@ mod tests {
             match app
                 .clone()
                 .oneshot(
-                    axum::http::Request::builder()
-                        .method(axum::http::Method::GET)
-                        .uri(uri)
-                        .header(axum::http::header::CONTENT_TYPE, "application/json")
-                        .header(
-                            axum::http::header::AUTHORIZATION,
-                            super::bearer_auth().await,
-                        )
-                        .body(axum::body::Body::empty())
+                    super::request::run_post(None, &uri, axum::http::Method::GET, false)
+                        .await
                         .unwrap(),
                 )
                 .await
@@ -2059,14 +2085,8 @@ mod tests {
             match app
                 .clone()
                 .oneshot(
-                    axum::http::Request::builder()
-                        .method(axum::http::Method::GET)
-                        .uri(&uri)
-                        .header(
-                            axum::http::header::AUTHORIZATION,
-                            super::bearer_auth().await,
-                        )
-                        .body(axum::body::Body::empty())
+                    super::request::run_post(None, &uri, axum::http::Method::GET, false)
+                        .await
                         .unwrap(),
                 )
                 .await
@@ -2119,14 +2139,8 @@ mod tests {
             match app
                 .clone()
                 .oneshot(
-                    axum::http::Request::builder()
-                        .method(axum::http::Method::GET)
-                        .uri(&uri)
-                        .header(
-                            axum::http::header::AUTHORIZATION,
-                            super::bearer_auth().await,
-                        )
-                        .body(axum::body::Body::empty())
+                    super::request::run_post(None, &uri, axum::http::Method::GET, false)
+                        .await
                         .unwrap(),
                 )
                 .await
@@ -2181,14 +2195,8 @@ mod tests {
             match app
                 .clone()
                 .oneshot(
-                    axum::http::Request::builder()
-                        .method(axum::http::Method::GET)
-                        .uri(&uri)
-                        .header(
-                            axum::http::header::AUTHORIZATION,
-                            super::bearer_auth().await,
-                        )
-                        .body(axum::body::Body::empty())
+                    super::request::run_post(None, &uri, axum::http::Method::GET, false)
+                        .await
                         .unwrap(),
                 )
                 .await
@@ -2308,14 +2316,8 @@ mod tests {
             match app
                 .clone()
                 .oneshot(
-                    axum::http::Request::builder()
-                        .method(axum::http::Method::DELETE)
-                        .uri(&uri)
-                        .header(
-                            axum::http::header::AUTHORIZATION,
-                            super::bearer_auth().await,
-                        )
-                        .body(axum::body::Body::empty())
+                    super::request::run_post(None, &uri, axum::http::Method::DELETE, false)
+                        .await
                         .unwrap(),
                 )
                 .await
@@ -2380,16 +2382,14 @@ mod tests {
             match app
                 .clone()
                 .oneshot(
-                    axum::http::Request::builder()
-                        .method(axum::http::Method::GET)
-                        .uri(crate::callers::endpoints::GETALLSONGS)
-                        .header(axum::http::header::CONTENT_TYPE, "application/json")
-                        .header(
-                            axum::http::header::AUTHORIZATION,
-                            super::bearer_auth().await,
-                        )
-                        .body(axum::body::Body::empty())
-                        .unwrap(),
+                    super::request::run_post(
+                        None,
+                        crate::callers::endpoints::GETALLSONGS,
+                        axum::http::Method::GET,
+                        false,
+                    )
+                    .await
+                    .unwrap(),
                 )
                 .await
             {
