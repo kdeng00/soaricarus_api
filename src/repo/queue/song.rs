@@ -24,16 +24,14 @@ pub mod dbtype {
 
 pub async fn insert(
     pool: &sqlx::PgPool,
-    data: &Vec<u8>,
     filename: &String,
     status: &String,
 ) -> Result<uuid::Uuid, sqlx::Error> {
     let result = sqlx::query(
         r#"
-        INSERT INTO "songQueue" (data, filename, status) VALUES($1, $2, $3) RETURNING id;
+        INSERT INTO "songQueue" (filename, status) VALUES($1, $2) RETURNING id;
         "#,
     )
-    .bind(data)
     .bind(filename)
     .bind(status)
     .fetch_one(pool)
@@ -249,54 +247,6 @@ pub async fn get_song_queue(
             };
 
             Ok(song_queue)
-        }
-        Err(_err) => Err(sqlx::Error::RowNotFound),
-    }
-}
-
-pub async fn wipe_data(pool: &sqlx::PgPool, id: &uuid::Uuid) -> Result<uuid::Uuid, sqlx::Error> {
-    let result = sqlx::query(
-        r#"
-        UPDATE "songQueue" SET data = NULL WHERE id = $1 RETURNING id;
-        "#,
-    )
-    .bind(id)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| {
-        eprintln!("Error updating record: {e}");
-    });
-
-    match result {
-        Ok(row) => Ok(row
-            .try_get("id")
-            .map_err(|_e| sqlx::Error::RowNotFound)
-            .unwrap()),
-        Err(_) => Err(sqlx::Error::RowNotFound),
-    }
-}
-
-pub async fn get_data(pool: &sqlx::PgPool, id: &uuid::Uuid) -> Result<Vec<u8>, sqlx::Error> {
-    let result = sqlx::query(
-        r#"
-        SELECT data FROM "songQueue"
-        WHERE id = $1;
-        "#,
-    )
-    .bind(id)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| {
-        eprintln!("Error inserting: {e}");
-    });
-
-    match result {
-        Ok(row) => {
-            let data = row
-                .try_get("data")
-                .map_err(|_e| sqlx::Error::RowNotFound)
-                .unwrap();
-            Ok(data)
         }
         Err(_err) => Err(sqlx::Error::RowNotFound),
     }

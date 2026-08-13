@@ -1,18 +1,12 @@
-pub mod auth;
-pub mod callers;
-pub mod config;
-pub mod db;
-pub mod repo;
-
 #[tokio::main]
 async fn main() {
     // initialize tracing
     tracing_subscriber::fmt::init();
 
-    match tokio::net::TcpListener::bind(config::host::get_full()).await {
+    match tokio::net::TcpListener::bind(soaricarus_api::config::host::get_full()).await {
         Ok(listener) => {
             // build our application with routes
-            let app = config::init::app().await;
+            let app = soaricarus_api::config::init::app().await;
             axum::serve(listener, app).await.unwrap();
         }
         Err(err) => {
@@ -27,7 +21,7 @@ mod tests {
 
     use tower::ServiceExt;
 
-    use crate::db;
+    use soaricarus_api::db;
 
     mod db_mgr {
         use std::str::FromStr;
@@ -111,7 +105,7 @@ mod tests {
         use std::time::Duration;
 
         pub async fn app(pool: sqlx::PgPool) -> axum::Router {
-            crate::config::init::routes()
+            soaricarus_api::config::init::routes()
                 .await
                 .layer(axum::Extension(pool))
                 .layer(axum::extract::DefaultBodyLimit::max(1024 * 1024 * 1024))
@@ -197,7 +191,7 @@ mod tests {
                     "flac".to_string(),
                     "tests/I/track01.flac".to_string(),
                 ))),
-                crate::callers::queue::endpoints::QUEUESONG,
+                soaricarus_api::callers::queue::endpoints::QUEUESONG,
                 axum::http::Method::POST,
                 true,
             )
@@ -221,7 +215,7 @@ mod tests {
 
             match run_post(
                 Some(ReqBody::Json(payload)),
-                crate::callers::queue::endpoints::QUEUESONGLINKUSERID,
+                soaricarus_api::callers::queue::endpoints::QUEUESONGLINKUSERID,
                 axum::http::Method::PATCH,
                 true,
             )
@@ -240,7 +234,7 @@ mod tests {
         ) -> Result<axum::response::Response, axum::http::Error> {
             match run_post(
                 None,
-                crate::callers::queue::endpoints::NEXTQUEUESONG,
+                soaricarus_api::callers::queue::endpoints::NEXTQUEUESONG,
                 axum::http::Method::GET,
                 false,
             )
@@ -260,7 +254,7 @@ mod tests {
         ) -> Result<axum::response::Response, axum::http::Error> {
             let uri = format!(
                 "{}?id={}",
-                crate::callers::queue::endpoints::QUEUEMETADATA,
+                soaricarus_api::callers::queue::endpoints::QUEUEMETADATA,
                 id
             );
 
@@ -277,7 +271,7 @@ mod tests {
             app: &axum::Router,
             id: &uuid::Uuid,
         ) -> Result<axum::response::Response, axum::http::Error> {
-            let raw_uri = String::from(crate::callers::queue::endpoints::QUEUESONGDATA);
+            let raw_uri = String::from(soaricarus_api::callers::queue::endpoints::QUEUESONGDATA);
             let end_index = raw_uri.len() - 4;
             let mut uri: String = (&raw_uri[..end_index]).to_string();
             uri += &id.to_string();
@@ -299,7 +293,7 @@ mod tests {
                     simeta::detection::coverart::constants::JPEG_TYPE.to_string(),
                     "tests/I/Coverart-1.jpg".to_string(),
                 ))),
-                crate::callers::queue::endpoints::QUEUECOVERART,
+                soaricarus_api::callers::queue::endpoints::QUEUECOVERART,
                 axum::http::Method::POST,
                 true,
             )
@@ -321,7 +315,7 @@ mod tests {
 
             match run_post(
                 Some(ReqBody::Json(payload)),
-                crate::callers::queue::endpoints::QUEUEMETADATA,
+                soaricarus_api::callers::queue::endpoints::QUEUEMETADATA,
                 axum::http::Method::POST,
                 true,
             )
@@ -348,7 +342,7 @@ mod tests {
 
             match run_post(
                 Some(ReqBody::Json(payload)),
-                crate::callers::queue::endpoints::QUEUECOVERARTLINK,
+                soaricarus_api::callers::queue::endpoints::QUEUECOVERARTLINK,
                 axum::http::Method::PATCH,
                 true,
             )
@@ -371,7 +365,7 @@ mod tests {
 
             match run_post(
                 Some(ReqBody::Json(payload)),
-                crate::callers::endpoints::CREATECOVERART,
+                soaricarus_api::callers::endpoints::CREATECOVERART,
                 axum::http::Method::POST,
                 true,
             )
@@ -394,7 +388,7 @@ mod tests {
 
             match run_post(
                 Some(ReqBody::Json(payload)),
-                crate::callers::endpoints::CREATESONG,
+                soaricarus_api::callers::endpoints::CREATESONG,
                 axum::http::Method::POST,
                 true,
             )
@@ -417,7 +411,7 @@ mod tests {
 
             match run_post(
                 Some(ReqBody::Json(payload)),
-                crate::callers::queue::endpoints::QUEUESONG,
+                soaricarus_api::callers::queue::endpoints::QUEUESONG,
                 axum::http::Method::PATCH,
                 true,
             )
@@ -437,7 +431,7 @@ mod tests {
         ) -> Result<axum::response::Response, axum::http::Error> {
             let uri = format!(
                 "{}?id={}",
-                crate::callers::queue::endpoints::QUEUECOVERART,
+                soaricarus_api::callers::queue::endpoints::QUEUECOVERART,
                 coverart_queue_id
             );
 
@@ -513,7 +507,7 @@ mod tests {
             match super::request::song_queue_req(&app).await {
                 Ok(response) => {
                     let resp = super::util::get_resp_data::<
-                        crate::callers::queue::song::response::song_queue::Response,
+                        soaricarus_api::callers::queue::song::response::song_queue::Response,
                     >(response)
                     .await;
                     assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -527,7 +521,7 @@ mod tests {
                     {
                         Ok(response) => {
                             let resp = super::util::get_resp_data::<
-                                crate::callers::queue::song::response::link_user_id::Response,
+                                soaricarus_api::callers::queue::song::response::link_user_id::Response,
                             >(response)
                             .await;
                             assert_eq!(
@@ -539,7 +533,7 @@ mod tests {
                             match super::request::queue_metadata_req(&app, &song_queue_id).await {
                                 Ok(response) => {
                                     let resp = super::util::get_resp_data::<
-                                        crate::callers::queue::song::response::song_queue::Response,
+                                        soaricarus_api::callers::queue::song::response::song_queue::Response,
                                     >(response)
                                     .await;
                                     assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -570,7 +564,7 @@ mod tests {
             match super::request::upload_coverart_queue_req(&app).await {
                 Ok(response) => {
                     let resp = super::util::get_resp_data::<
-                        crate::callers::queue::coverart::response::queue::Response,
+                        soaricarus_api::callers::queue::coverart::response::queue::Response,
                     >(response)
                     .await;
                     assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -586,7 +580,7 @@ mod tests {
                     {
                         Ok(response) => {
                             let resp = super::util::get_resp_data::<
-                                crate::callers::queue::coverart::response::link::Response,
+                                soaricarus_api::callers::queue::coverart::response::link::Response,
                             >(response)
                             .await;
                             assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -616,7 +610,7 @@ mod tests {
             match queue_song_flow(&app).await {
                 Ok((song_response, user_id)) => {
                     let resp = super::util::get_resp_data::<
-                        crate::callers::queue::metadata::response::fetch_metadata::Response,
+                        soaricarus_api::callers::queue::metadata::response::fetch_metadata::Response,
                     >(song_response)
                     .await;
                     assert_eq!(false, resp.data.is_empty(), "Data should not be empty");
@@ -625,7 +619,7 @@ mod tests {
                     match super::request::create_song_req(&app, &song_queue_id, &user_id).await {
                         Ok(response) => {
                             let resp = super::util::get_resp_data::<
-                                crate::callers::song::response::create_metadata::Response,
+                                soaricarus_api::callers::song::response::create_metadata::Response,
                             >(response)
                             .await;
                             assert_eq!(
@@ -743,7 +737,7 @@ mod tests {
         ) -> serde_json::Value {
             serde_json::json!({
                 "id": song_queue_id,
-                "status": crate::repo::queue::song::status::READY
+                "status": soaricarus_api::repo::queue::song::status::READY
             })
         }
     }
@@ -771,7 +765,7 @@ mod tests {
         match request::song_queue_req(&app).await {
             Ok(response) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::song::response::song_queue::Response,
+                    soaricarus_api::callers::queue::song::response::song_queue::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -807,7 +801,7 @@ mod tests {
         match request::song_queue_req(&app).await {
             Ok(response) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::song::response::song_queue::Response,
+                    soaricarus_api::callers::queue::song::response::song_queue::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -820,7 +814,7 @@ mod tests {
                 match request::song_queue_link_req(&app, &song_queue_id, &user_id).await {
                     Ok(response) => {
                         let resp = util::get_resp_data::<
-                            crate::callers::queue::song::response::link_user_id::Response,
+                            soaricarus_api::callers::queue::song::response::link_user_id::Response,
                         >(response)
                         .await;
                         let collected_user_id = &resp.data[0];
@@ -872,20 +866,20 @@ mod tests {
         match sequence_flow::queue_song_and_coverart_flow(&app).await {
             Ok((resp_one, song_queue_id)) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::coverart::response::fetch_coverart_no_data::Response,
+                    soaricarus_api::callers::queue::coverart::response::fetch_coverart_no_data::Response,
                 >(resp_one)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
 
                 let _resp_coverart_queue_id = resp.data[0].id;
 
-                let old = crate::repo::queue::song::status::PENDING;
-                let target_status = crate::repo::queue::song::status::READY;
+                let old = soaricarus_api::repo::queue::song::status::PENDING;
+                let target_status = soaricarus_api::repo::queue::song::status::READY;
 
                 match request::update_song_queue_status_req(&app, &song_queue_id).await {
                     Ok(response) => {
                         let resp = util::get_resp_data::<
-                            crate::callers::queue::song::response::update_status::Response,
+                            soaricarus_api::callers::queue::song::response::update_status::Response,
                         >(response)
                         .await;
                         assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -900,7 +894,7 @@ mod tests {
                         match request::fetch_queue_req(&app).await {
                             Ok(response) => {
                                 let resp = util::get_resp_data::<
-                                    crate::callers::queue::song::response::fetch_queue_song::Response,
+                                    soaricarus_api::callers::queue::song::response::fetch_queue_song::Response,
                                 >(response)
                                 .await;
                                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -946,7 +940,7 @@ mod tests {
         match request::song_queue_req(&app).await {
             Ok(response) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::song::response::song_queue::Response,
+                    soaricarus_api::callers::queue::song::response::song_queue::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -980,8 +974,9 @@ mod tests {
                             }
                             let songpath = song.song_path().unwrap();
 
-                            let raw_uri =
-                                String::from(crate::callers::queue::endpoints::QUEUESONGUPDATE);
+                            let raw_uri = String::from(
+                                soaricarus_api::callers::queue::endpoints::QUEUESONGUPDATE,
+                            );
                             let end_index = raw_uri.len() - 5;
 
                             let uri = format!(
@@ -1009,7 +1004,7 @@ mod tests {
                             {
                                 Ok(response) => {
                                     let resp = util::get_resp_data::<
-                                        crate::callers::queue::song::response::update_song_queue::Response,
+                                        soaricarus_api::callers::queue::song::response::update_song_queue::Response,
                                     >(response)
                                     .await;
                                     assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1066,7 +1061,7 @@ mod tests {
         match request::song_queue_req(&app).await {
             Ok(response) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::song::response::song_queue::Response,
+                    soaricarus_api::callers::queue::song::response::song_queue::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1117,20 +1112,20 @@ mod tests {
         match sequence_flow::queue_song_and_coverart_flow(&app).await {
             Ok((resp_one, song_queue_id)) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::coverart::response::fetch_coverart_no_data::Response,
+                    soaricarus_api::callers::queue::coverart::response::fetch_coverart_no_data::Response,
                 >(resp_one)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
 
                 let _resp_coverart_queue_id = resp.data[0].id;
 
-                let old = crate::repo::queue::song::status::PENDING;
-                let done = crate::repo::queue::song::status::READY;
+                let old = soaricarus_api::repo::queue::song::status::PENDING;
+                let done = soaricarus_api::repo::queue::song::status::READY;
 
                 match request::update_song_queue_status_req(&app, &song_queue_id).await {
                     Ok(response) => {
                         let resp = util::get_resp_data::<
-                            crate::callers::queue::song::response::update_status::Response,
+                            soaricarus_api::callers::queue::song::response::update_status::Response,
                         >(response)
                         .await;
                         assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1175,7 +1170,7 @@ mod tests {
         match request::song_queue_req(&app).await {
             Ok(response) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::song::response::song_queue::Response,
+                    soaricarus_api::callers::queue::song::response::song_queue::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1184,7 +1179,7 @@ mod tests {
                 match request::queue_metadata_req(&app, &resp.data[0]).await {
                     Ok(response) => {
                         let resp = util::get_resp_data::<
-                            crate::callers::queue::song::response::song_queue::Response,
+                            soaricarus_api::callers::queue::song::response::song_queue::Response,
                         >(response)
                         .await;
                         assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1225,7 +1220,7 @@ mod tests {
         match sequence_flow::queue_song_flow(&app).await {
             Ok((response, _user_id)) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::metadata::response::fetch_metadata::Response,
+                    soaricarus_api::callers::queue::metadata::response::fetch_metadata::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Data should not be empty");
@@ -1261,7 +1256,7 @@ mod tests {
         match request::upload_coverart_queue_req(&app).await {
             Ok(response) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::coverart::response::queue::Response,
+                    soaricarus_api::callers::queue::coverart::response::queue::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1298,7 +1293,7 @@ mod tests {
         match request::song_queue_req(&app).await {
             Ok(response) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::coverart::response::queue::Response,
+                    soaricarus_api::callers::queue::coverart::response::queue::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1309,7 +1304,7 @@ mod tests {
                 match request::upload_coverart_queue_req(&app).await {
                     Ok(response) => {
                         let resp = util::get_resp_data::<
-                            crate::callers::queue::coverart::response::queue::Response,
+                            soaricarus_api::callers::queue::coverart::response::queue::Response,
                         >(response)
                         .await;
                         assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1325,7 +1320,7 @@ mod tests {
                         {
                             Ok(response) => {
                                 let resp = util::get_resp_data::<
-                                    crate::callers::queue::coverart::response::link::Response,
+                                    soaricarus_api::callers::queue::coverart::response::link::Response,
                                 >(response)
                                 .await;
                                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1379,7 +1374,7 @@ mod tests {
         match request::song_queue_req(&app).await {
             Ok(response) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::coverart::response::queue::Response,
+                    soaricarus_api::callers::queue::coverart::response::queue::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1389,7 +1384,7 @@ mod tests {
                 match sequence_flow::queue_coverart_flow(&app, &song_queue_id).await {
                     Ok(response) => {
                         let resp = util::get_resp_data::<
-                            crate::callers::queue::coverart::response::fetch_coverart_no_data::Response,
+                            soaricarus_api::callers::queue::coverart::response::fetch_coverart_no_data::Response,
                         >(response)
                         .await;
                         assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1429,7 +1424,7 @@ mod tests {
         match request::song_queue_req(&app).await {
             Ok(response) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::coverart::response::queue::Response,
+                    soaricarus_api::callers::queue::coverart::response::queue::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1440,7 +1435,7 @@ mod tests {
                 match request::upload_coverart_queue_req(&app).await {
                     Ok(response) => {
                         let resp = util::get_resp_data::<
-                            crate::callers::queue::coverart::response::queue::Response,
+                            soaricarus_api::callers::queue::coverart::response::queue::Response,
                         >(response)
                         .await;
                         assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1456,7 +1451,7 @@ mod tests {
                         {
                             Ok(response) => {
                                 let resp = util::get_resp_data::<
-                                    crate::callers::queue::coverart::response::link::Response,
+                                    soaricarus_api::callers::queue::coverart::response::link::Response,
                                 >(response)
                                 .await;
                                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1471,7 +1466,7 @@ mod tests {
                                 );
 
                                 let raw_uri = String::from(
-                                    crate::callers::queue::endpoints::QUEUECOVERARTDATA,
+                                    soaricarus_api::callers::queue::endpoints::QUEUECOVERARTDATA,
                                 );
                                 let end_index = raw_uri.len() - 5;
                                 let uri = format!(
@@ -1562,7 +1557,7 @@ mod tests {
         match sequence_flow::queue_song_flow(&app).await {
             Ok((response, user_id)) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::metadata::response::fetch_metadata::Response,
+                    soaricarus_api::callers::queue::metadata::response::fetch_metadata::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Data should not be empty");
@@ -1571,7 +1566,7 @@ mod tests {
                 match request::create_song_req(&app, &song_q_id, &user_id).await {
                     Ok(response) => {
                         let resp = util::get_resp_data::<
-                            crate::callers::song::response::create_metadata::Response,
+                            soaricarus_api::callers::song::response::create_metadata::Response,
                         >(response)
                         .await;
                         assert_eq!(
@@ -1625,7 +1620,7 @@ mod tests {
         match sequence_flow::queue_song_flow(&app).await {
             Ok((response, user_id)) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::metadata::response::fetch_metadata::Response,
+                    soaricarus_api::callers::queue::metadata::response::fetch_metadata::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Data should not be empty");
@@ -1634,7 +1629,7 @@ mod tests {
                 match request::create_song_req(&app, &song_queue_id, &user_id).await {
                     Ok(response) => {
                         let resp = util::get_resp_data::<
-                            crate::callers::song::response::create_metadata::Response,
+                            soaricarus_api::callers::song::response::create_metadata::Response,
                         >(response)
                         .await;
                         assert_eq!(
@@ -1655,7 +1650,7 @@ mod tests {
                         match sequence_flow::queue_coverart_flow(&app, &song_queue_id).await {
                             Ok(response) => {
                                 let resp = util::get_resp_data::<
-                                                    crate::callers::queue::coverart::response::fetch_coverart_no_data::Response,
+                                                    soaricarus_api::callers::queue::coverart::response::fetch_coverart_no_data::Response,
                                                 >(response)
                                                 .await;
                                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1670,7 +1665,7 @@ mod tests {
                                 {
                                     Ok(response) => {
                                         let resp = util::get_resp_data::<
-                                                            crate::callers::coverart::response::create_coverart::Response,
+                                                            soaricarus_api::callers::coverart::response::create_coverart::Response,
                                                         >(response)
                                                         .await;
                                         assert_eq!(
@@ -1725,7 +1720,7 @@ mod tests {
         match sequence_flow::queue_song_flow(&app).await {
             Ok((response, user_id)) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::metadata::response::fetch_metadata::Response,
+                    soaricarus_api::callers::queue::metadata::response::fetch_metadata::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Data should not be empty");
@@ -1734,7 +1729,7 @@ mod tests {
                 match request::create_song_req(&app, &song_q_id, &user_id).await {
                     Ok(response) => {
                         let resp = util::get_resp_data::<
-                            crate::callers::song::response::create_metadata::Response,
+                            soaricarus_api::callers::song::response::create_metadata::Response,
                         >(response)
                         .await;
                         assert_eq!(
@@ -1761,7 +1756,7 @@ mod tests {
                             .oneshot(
                                 request::run_post(
                                     Some(request::ReqBody::Json(payload)),
-                                    crate::callers::queue::endpoints::QUEUESONGDATAWIPE,
+                                    soaricarus_api::callers::queue::endpoints::QUEUESONGDATAWIPE,
                                     axum::http::Method::PATCH,
                                     true,
                                 )
@@ -1771,7 +1766,7 @@ mod tests {
                             .await
                         {
                             Ok(response) => {
-                                let resp = util::get_resp_data::<crate::callers::queue::song::response::wipe_data_from_song_queue::Response>(response).await;
+                                let resp = util::get_resp_data::<soaricarus_api::callers::queue::song::response::wipe_data_from_song_queue::Response>(response).await;
                                 assert_eq!(
                                     false,
                                     resp.data.is_empty(),
@@ -1832,7 +1827,7 @@ mod tests {
         match sequence_flow::queue_song_flow(&app).await {
             Ok((response, user_id)) => {
                 let resp = util::get_resp_data::<
-                    crate::callers::queue::metadata::response::fetch_metadata::Response,
+                    soaricarus_api::callers::queue::metadata::response::fetch_metadata::Response,
                 >(response)
                 .await;
                 assert_eq!(false, resp.data.is_empty(), "Data should not be empty");
@@ -1841,7 +1836,7 @@ mod tests {
                 match request::create_song_req(&app, &song_queue_id, &user_id).await {
                     Ok(response) => {
                         let resp = util::get_resp_data::<
-                            crate::callers::song::response::create_metadata::Response,
+                            soaricarus_api::callers::song::response::create_metadata::Response,
                         >(response)
                         .await;
                         assert_eq!(
@@ -1864,7 +1859,7 @@ mod tests {
                         match sequence_flow::queue_coverart_flow(&app, &song_queue_id).await {
                             Ok(response) => {
                                 let resp = util::get_resp_data::<
-                                    crate::callers::queue::coverart::response::fetch_coverart_no_data::Response,
+                                    soaricarus_api::callers::queue::coverart::response::fetch_coverart_no_data::Response,
                                 >(response)
                                 .await;
                                 assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1880,7 +1875,7 @@ mod tests {
                                     .oneshot(
                                         request::run_post(
                                             Some(request::ReqBody::Json(payload)),
-                                            crate::callers::queue::endpoints::QUEUECOVERARTDATAWIPE,
+                                            soaricarus_api::callers::queue::endpoints::QUEUECOVERARTDATAWIPE,
                                             axum::http::Method::PATCH,
                                             true,
                                         )
@@ -1891,7 +1886,7 @@ mod tests {
                                 {
                                     Ok(response) => {
                                         let resp = util::get_resp_data::<
-                                            crate::callers::queue::coverart::response::wipe_data_from_coverart_queue::Response,
+                                            soaricarus_api::callers::queue::coverart::response::wipe_data_from_coverart_queue::Response,
                                         >(response)
                                         .await;
                                         assert_eq!(
@@ -1948,7 +1943,7 @@ mod tests {
 
             let (id, _, _, _) = test_data::song_id().await.unwrap();
 
-            let uri = format!("{}?id={id}", crate::callers::endpoints::GETSONGS);
+            let uri = format!("{}?id={id}", soaricarus_api::callers::endpoints::GETSONGS);
 
             match app
                 .clone()
@@ -1961,7 +1956,7 @@ mod tests {
             {
                 Ok(response) => {
                     let resp = super::util::get_resp_data::<
-                        crate::callers::song::response::get_songs::Response,
+                        soaricarus_api::callers::song::response::get_songs::Response,
                     >(response)
                     .await;
                     assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -1998,7 +1993,10 @@ mod tests {
 
             let id = test_data::coverart_id().await.unwrap();
 
-            let uri = format!("{}?id={id}", crate::callers::endpoints::GETCOVERART);
+            let uri = format!(
+                "{}?id={id}",
+                soaricarus_api::callers::endpoints::GETCOVERART
+            );
 
             match app
                 .clone()
@@ -2011,7 +2009,7 @@ mod tests {
             {
                 Ok(response) => {
                     let resp = super::util::get_resp_data::<
-                        crate::callers::coverart::response::get_coverart::Response,
+                        soaricarus_api::callers::coverart::response::get_coverart::Response,
                     >(response)
                     .await;
                     assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -2078,7 +2076,7 @@ mod tests {
 
             let (id, _, _, _) = test_data::song_id().await.unwrap();
 
-            let my_url = crate::callers::endpoints::STREAMSONG;
+            let my_url = soaricarus_api::callers::endpoints::STREAMSONG;
             let last = my_url.len() - 5;
             let uri = format!("{}/{id}", &my_url[0..last]);
 
@@ -2132,9 +2130,11 @@ mod tests {
 
             let (id, _, _, _) = test_data::song_id().await.unwrap();
 
-            let uri =
-                super::util::format_url_with_value(crate::callers::endpoints::DOWNLOADSONG, &id)
-                    .await;
+            let uri = super::util::format_url_with_value(
+                soaricarus_api::callers::endpoints::DOWNLOADSONG,
+                &id,
+            )
+            .await;
 
             match app
                 .clone()
@@ -2187,7 +2187,7 @@ mod tests {
             let id = test_data::coverart_id().await.unwrap();
 
             let uri = super::util::format_url_with_value(
-                crate::callers::endpoints::DOWNLOADCOVERART,
+                soaricarus_api::callers::endpoints::DOWNLOADCOVERART,
                 &id,
             )
             .await;
@@ -2309,9 +2309,11 @@ mod tests {
             .await
             .unwrap();
 
-            let uri =
-                super::util::format_url_with_value(crate::callers::endpoints::DELETESONG, &id)
-                    .await;
+            let uri = super::util::format_url_with_value(
+                soaricarus_api::callers::endpoints::DELETESONG,
+                &id,
+            )
+            .await;
 
             match app
                 .clone()
@@ -2324,7 +2326,7 @@ mod tests {
             {
                 Ok(response) => {
                     let resp = super::util::get_resp_data::<
-                        crate::callers::song::response::delete_song::Response,
+                        soaricarus_api::callers::song::response::delete_song::Response,
                     >(response)
                     .await;
                     assert_eq!(false, resp.data.is_empty(), "Response has no data");
@@ -2384,7 +2386,7 @@ mod tests {
                 .oneshot(
                     super::request::run_post(
                         None,
-                        crate::callers::endpoints::GETALLSONGS,
+                        soaricarus_api::callers::endpoints::GETALLSONGS,
                         axum::http::Method::GET,
                         false,
                     )
@@ -2395,7 +2397,7 @@ mod tests {
             {
                 Ok(response) => {
                     let resp = super::util::get_resp_data::<
-                        crate::callers::song::response::get_songs::Response,
+                        soaricarus_api::callers::song::response::get_songs::Response,
                     >(response)
                     .await;
                     assert_eq!(false, resp.data.is_empty(), "Should not be empty");

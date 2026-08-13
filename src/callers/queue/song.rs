@@ -162,7 +162,6 @@ pub mod endpoint {
                             if valid {
                                 match repo::song::insert(
                                     &pool,
-                                    &raw_data,
                                     &file_name,
                                     &crate::repo::queue::song::status::PENDING.to_string(),
                                 )
@@ -172,69 +171,33 @@ pub mod endpoint {
                                         results.push(queued_song);
                                         println!("Uploading to bucket");
 
-                                        let s3_endpoint_url =
-                                            sienvy::environment::get_env("S3_ENDPOINT_URL");
-                                        let bucket_name =
-                                            sienvy::environment::get_env("S3_BUCKET_NAME");
-                                        let region =
-                                            sienvy::environment::get_env("GARAGE_S3_REGION");
-                                        let access_key_id = sienvy::environment::get_env(
-                                            "GARAGE_DEFAULT_ACCESS_KEY",
-                                        );
-                                        let secret_key = sienvy::environment::get_env(
-                                            "GARAGE_DEFAULT_SECRET_KEY",
-                                        );
-
-                                        let lab_config = labyrinth::config::Config {
-                                            url: s3_endpoint_url.value,
-                                            bucket: bucket_name.value,
-                                            region: region.value,
-                                            access_key_id: access_key_id.value,
-                                            secret_key: secret_key.value,
-                                        };
-
-                                        println!("Labyrinth config: {lab_config:?}");
+                                        let lab_config = crate::util::maze::get_config();
 
                                         let lr = labyrinth::Labyrinth { config: lab_config };
                                         let data = labyrinth::Data {
                                             raw_data: copied_raw_data,
                                             ..Default::default()
                                         };
-                                        let filename = simodels::song::generate_filename(
-                                            simodels::types::MusicType::FlacExtension,
-                                            true,
-                                        )
-                                        .unwrap();
-                                        println!("Filename: {filename:?}");
-                                        let file_path = format!("queued/song/{filename}");
+
+                                        println!("Filename: {file_name:?}");
+                                        let file_path = format!("queued/song/{file_name}");
                                         println!("Path: {file_path:?}");
 
                                         match lr.upload(&file_path, &data).await {
-                                            Ok(res) => {
-                                                println!("Result: {res:?}");
-
-                                                println!("Downloading file");
-                                                match lr.download(&file_path).await {
-                                                    Ok(res) => {
-                                                        if res.is_empty() {
-                                                            println!("This should not be empty");
-                                                        } else {
-                                                            println!("Size: {:?}", res.len());
-                                                            println!("Going to delete file");
-
-                                                            match lr.delete(&file_path).await {
-                                                                Ok(res) => {
-                                                                    println!("Result: {res:?}");
-                                                                    println!("Deleted");
-                                                                }
-                                                                Err(err) => {
-                                                                    eprintln!("Error: {err:?}");
-                                                                }
-                                                            }
-                                                        }
-                                                    }
+                                            Ok(_res) => {
+                                                match repo::data::insert(
+                                                    &pool,
+                                                    &file_path,
+                                                    &lr.config.bucket,
+                                                    &lr.config.region,
+                                                    &queued_song,
+                                                )
+                                                .await
+                                                {
+                                                    Ok(_id) => {}
                                                     Err(err) => {
                                                         eprintln!("Error: {err:?}");
+                                                        return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, axum::Json(response));
                                                     }
                                                 }
                                             }
@@ -379,28 +342,40 @@ pub mod endpoint {
     )]
     pub async fn download_queued_song(
         axum::Extension(pool): axum::Extension<sqlx::PgPool>,
-        axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+        axum::extract::Path(song_queue_id): axum::extract::Path<uuid::Uuid>,
     ) -> (axum::http::StatusCode, axum::response::Response) {
-        println!("Id: {id}");
+        println!("Id: {song_queue_id}");
 
-        match repo::song::get_data(&pool, &id).await {
-            Ok(data) => {
-                let by = axum::body::Bytes::from(data);
-                let mut response = by.into_response();
-                let headers = response.headers_mut();
-                headers.insert(
-                    axum::http::header::CONTENT_TYPE,
-                    "audio/flac".parse().unwrap(),
-                );
-                headers.insert(
-                    axum::http::header::CONTENT_DISPOSITION,
-                    format!("attachment; filename=\"{id}.flac\"")
-                        .parse()
-                        .unwrap(),
-                );
+        let lab_config = crate::util::maze::get_config();
+        let lr = labyrinth::Labyrinth { config: lab_config };
 
-                (axum::http::StatusCode::OK, response)
-            }
+        match repo::data::get_with_song_queue_id(&pool, &song_queue_id).await {
+            Ok((id, file_key, _bucket, _region, _)) => match lr.download(&file_key).await {
+                Ok(data) => {
+                    let by = axum::body::Bytes::from(data);
+                    let mut response = by.into_response();
+                    let headers = response.headers_mut();
+                    headers.insert(
+                        axum::http::header::CONTENT_TYPE,
+                        "audio/flac".parse().unwrap(),
+                    );
+                    headers.insert(
+                        axum::http::header::CONTENT_DISPOSITION,
+                        format!("attachment; filename=\"{id}.flac\"")
+                            .parse()
+                            .unwrap(),
+                    );
+
+                    (axum::http::StatusCode::OK, response)
+                }
+                Err(err) => {
+                    eprintln!("Error: {err:?}");
+                    (
+                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                        axum::response::Response::default(),
+                    )
+                }
+            },
             Err(_err) => (
                 axum::http::StatusCode::BAD_REQUEST,
                 axum::response::Response::default(),
@@ -488,7 +463,7 @@ pub mod endpoint {
         )
     )]
     pub async fn update_song_queue(
-        axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+        axum::extract::Path(song_queue_id): axum::extract::Path<uuid::Uuid>,
         axum::Extension(pool): axum::Extension<sqlx::PgPool>,
         mut multipart: axum::extract::Multipart,
     ) -> (
@@ -519,15 +494,75 @@ pub mod endpoint {
             match super::is_song_valid(&raw_data).await {
                 Ok(valid) => {
                     if valid {
-                        match repo::song::update(&pool, &raw_data, &id).await {
-                            Ok(_) => {
-                                response.message =
-                                    String::from(super::super::super::response::SUCCESSFUL);
-                                response.data.push(id);
-                                (axum::http::StatusCode::OK, axum::Json(response))
+                        let lab_config = crate::util::maze::get_config();
+                        let lr = labyrinth::Labyrinth { config: lab_config };
+
+                        println!("Valid song");
+
+                        match repo::data::get_with_song_queue_id(&pool, &song_queue_id).await {
+                            Ok((id, file_key, _bucket, _region, _)) => {
+                                match lr.delete(&file_key).await {
+                                    Ok(_response) => {
+                                        let data = labyrinth::Data {
+                                            raw_data,
+                                            ..Default::default()
+                                        };
+
+                                        let filename = simodels::song::generate_filename(
+                                            simodels::types::MusicType::FlacExtension,
+                                            true,
+                                        )
+                                        .unwrap();
+                                        let new_file_key = format!("queued/song/{filename}");
+                                        println!("New key: {new_file_key:?}");
+
+                                        match lr.upload(&new_file_key, &data).await {
+                                            Ok(_) => {
+                                                match repo::data::update_file_key(
+                                                    &pool,
+                                                    &id,
+                                                    &new_file_key,
+                                                )
+                                                .await
+                                                {
+                                                    Ok(_) => {
+                                                        response.message =
+                                    super::super::super::response::SUCCESSFUL.to_string();
+                                                        response.data.push(song_queue_id);
+                                                        (
+                                                            axum::http::StatusCode::OK,
+                                                            axum::Json(response),
+                                                        )
+                                                    }
+                                                    Err(err) => {
+                                                        response.message = err.to_string();
+                                                        (
+                                                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                                            axum::Json(response),
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Err(err) => {
+                                                eprintln!("Error: {err:?}");
+                                                (
+                                                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                                    axum::Json(response),
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Err(err) => {
+                                        eprintln!("Error: {err:?}");
+                                        (
+                                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                            axum::Json(response),
+                                        )
+                                    }
+                                }
                             }
                             Err(err) => {
-                                response.message = err.to_string();
+                                eprintln!("Error: {err:?}");
                                 (
                                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                                     axum::Json(response),
@@ -564,7 +599,8 @@ pub mod endpoint {
             ),
         responses(
             (status = 200, description = "Queued song data wiped", body = super::response::wipe_data_from_song_queue::Response),
-            (status = 404, description = "Queued song cannot be found", body = super::response::wipe_data_from_song_queue::Response)
+            (status = 404, description = "Queued song cannot be found", body = super::response::wipe_data_from_song_queue::Response),
+            (status = 500, description = "Error wiping song data", body = super::response::wipe_data_from_song_queue::Response)
         )
     )]
     pub async fn wipe_data_from_song_queue(
@@ -575,21 +611,37 @@ pub mod endpoint {
         axum::Json<super::response::wipe_data_from_song_queue::Response>,
     ) {
         let mut response = super::response::wipe_data_from_song_queue::Response::default();
-        let id = payload.song_queue_id;
+        let song_queue_id = payload.song_queue_id;
 
-        match repo::song::get_song_queue(&pool, &id).await {
-            Ok(song_queue) => match repo::song::wipe_data(&pool, &song_queue.id).await {
-                Ok(wiped_id) => {
-                    response.message = String::from("Success");
-                    response.data.push(wiped_id);
+        match repo::song::get_song_queue(&pool, &song_queue_id).await {
+            Ok(_song_queue) => {
+                match repo::data::get_with_song_queue_id(&pool, &song_queue_id).await {
+                    Ok((_id, file_key, _bucket, _region, _)) => {
+                        let lab_config = crate::util::maze::get_config();
+                        let lr = labyrinth::Labyrinth { config: lab_config };
 
-                    (axum::http::StatusCode::OK, axum::Json(response))
+                        match lr.delete(&file_key).await {
+                            Ok(_) => {
+                                response.message = String::from("Success");
+                                response.data.push(song_queue_id);
+
+                                (axum::http::StatusCode::OK, axum::Json(response))
+                            }
+                            Err(err) => {
+                                eprintln!("Error: {err:?}");
+                                (
+                                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                    axum::Json(response),
+                                )
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        response.message = err.to_string();
+                        (axum::http::StatusCode::NOT_FOUND, axum::Json(response))
+                    }
                 }
-                Err(err) => {
-                    response.message = err.to_string();
-                    (axum::http::StatusCode::NOT_FOUND, axum::Json(response))
-                }
-            },
+            }
             Err(err) => {
                 response.message = err.to_string();
                 (axum::http::StatusCode::NOT_FOUND, axum::Json(response))

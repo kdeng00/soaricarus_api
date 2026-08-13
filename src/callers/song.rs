@@ -139,46 +139,56 @@ pub mod endpoint {
                     .unwrap();
             song.directory = sienvy::environment::get_root_directory().value;
 
-            match repo_queue::song::get_data(&pool, &payload.song_queue_id).await {
-                Ok(data) => {
-                    song.data = data;
-                    let dir = std::path::Path::new(&song.directory);
-                    if !dir.exists() {
-                        println!("Creating directory");
-                        match std::fs::create_dir_all(dir) {
-                            Ok(_) => {
-                                println!("Successfully created directory");
+            let lab_config = crate::util::maze::get_config();
+            let lr = labyrinth::Labyrinth { config: lab_config };
+
+            match repo_queue::data::get_with_song_queue_id(&pool, &payload.song_queue_id).await {
+                Ok((_id, file_key, _bucket, _region, _)) => match lr.download(&file_key).await {
+                    Ok(data) => {
+                        song.data = data;
+                        let dir = std::path::Path::new(&song.directory);
+                        if !dir.exists() {
+                            println!("Creating directory");
+                            match std::fs::create_dir_all(dir) {
+                                Ok(_) => {
+                                    println!("Successfully created directory");
+                                }
+                                Err(err) => {
+                                    eprintln!("Error: Unable to create the directory {err:?}");
+                                }
                             }
+                        }
+
+                        match song.save_to_filesystem() {
+                            Ok(_) => match repo::song::insert(&pool, &song).await {
+                                Ok((date_created, id)) => {
+                                    song.id = id;
+                                    song.date_created = Some(date_created);
+                                    response.message = String::from("Successful");
+                                    response.data.push(song);
+
+                                    (axum::http::StatusCode::OK, axum::Json(response))
+                                }
+                                Err(err) => {
+                                    response.message =
+                                        format!("{:?} song {:?}", err.to_string(), song);
+                                    (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))
+                                }
+                            },
                             Err(err) => {
-                                eprintln!("Error: Unable to create the directory {err:?}");
+                                response.message = err.to_string();
+                                (
+                                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                    axum::Json(response),
+                                )
                             }
                         }
                     }
-
-                    match song.save_to_filesystem() {
-                        Ok(_) => match repo::song::insert(&pool, &song).await {
-                            Ok((date_created, id)) => {
-                                song.id = id;
-                                song.date_created = Some(date_created);
-                                response.message = String::from("Successful");
-                                response.data.push(song);
-
-                                (axum::http::StatusCode::OK, axum::Json(response))
-                            }
-                            Err(err) => {
-                                response.message = format!("{:?} song {:?}", err.to_string(), song);
-                                (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))
-                            }
-                        },
-                        Err(err) => {
-                            response.message = err.to_string();
-                            (
-                                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                                axum::Json(response),
-                            )
-                        }
+                    Err(err) => {
+                        eprintln!("Error: {err:?}");
+                        (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))
                     }
-                }
+                },
                 Err(err) => {
                     response.message = err.to_string();
                     (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))

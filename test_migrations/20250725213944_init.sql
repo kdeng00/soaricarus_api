@@ -6,8 +6,15 @@ CREATE TABLE IF NOT EXISTS "songQueue" (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     filename TEXT NOT NULL,
     status TEXT CHECK (status IN ('pending', 'ready', 'processing', 'done')),
-    data BYTEA NULL,
     user_id UUID NULL
+);
+
+CREATE TABLE IF NOT EXISTS "songQueueData" (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    file_key TEXT NOT NULL,
+    bucket TEXT NOT NULL,
+    region TEXT NOT NULL,
+    song_queue_id UUID NOT NULL
 );
 
 -- Table to store queued metadata
