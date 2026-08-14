@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS "song" (
     date_created timestamptz DEFAULT now(),
     filename TEXT NOT NULL,
     directory TEXT NOT NULL,
+    file_key TEXT NOT NULL,
     user_id UUID NULL
     -- TODO: Add coverart id later. This will allow multiple songs to be linked to a single cover art
 );

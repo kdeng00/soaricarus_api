@@ -500,10 +500,82 @@ mod tests {
     }
 
     mod sequence_flow {
+        pub const TEST_SONG_01_FILE_KEY: &str = "processed/song/track01.flac";
+        pub const TEST_SONG_02_FILE_KEY: &str = "processed/song/track02.flac";
+
+        pub struct SongBucket {
+            pub file_key: String,
+            pub path: String,
+        }
+
+        pub async fn upload_test_songs_to_bucket() {
+            let songs = vec![
+                SongBucket {
+                    file_key: TEST_SONG_01_FILE_KEY.to_string(),
+                    path: "tests/I/track01.flac".to_string(),
+                },
+                SongBucket {
+                    file_key: TEST_SONG_02_FILE_KEY.to_string(),
+                    path: "tests/I/track02.flac".to_string(),
+                },
+            ];
+
+            let lab_config = soaricarus_api::util::maze::get_config();
+            let lr = labyrinth::Labyrinth { config: lab_config };
+
+            for song in &songs {
+                let p = std::path::Path::new(&song.path);
+                match tokio::fs::File::open(p).await {
+                    Ok(mut _file) => {
+                        let data = labyrinth::Data {
+                            filepath: song.path.clone(),
+                            ..Default::default()
+                        };
+
+                        match lr.upload(&song.file_key, &data).await {
+                            Ok(_) => {}
+                            Err(err) => {
+                                assert!(false, "Error: {err:?}");
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        assert!(false, "Error: {err:?}");
+                    }
+                };
+            }
+        }
+
+        pub async fn delete_test_songs_from_bucket() {
+            let songs = vec![
+                SongBucket {
+                    file_key: TEST_SONG_01_FILE_KEY.to_string(),
+                    path: "tests/I/track01.flac".to_string(),
+                },
+                SongBucket {
+                    file_key: TEST_SONG_02_FILE_KEY.to_string(),
+                    path: "tests/I/track02.flac".to_string(),
+                },
+            ];
+
+            let lab_config = soaricarus_api::util::maze::get_config();
+            let lr = labyrinth::Labyrinth { config: lab_config };
+
+            for song in &songs {
+                match lr.delete(&song.file_key).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        assert!(false, "Error: {err:?}");
+                    }
+                }
+            }
+        }
+
         // Flow for queueing song
         pub async fn queue_song_flow(
             app: &axum::Router,
         ) -> Result<(axum::response::Response, uuid::Uuid), axum::http::Error> {
+            upload_test_songs_to_bucket().await;
             match super::request::song_queue_req(&app).await {
                 Ok(response) => {
                     let resp = super::util::get_resp_data::<
@@ -636,8 +708,6 @@ mod tests {
                                 "Song id should not be nil {:?}",
                                 song
                             );
-
-                            eprintln!("Song: {:?}", song);
 
                             match queue_coverart_flow(&app, &song_queue_id).await {
                                 Ok(response) => Ok((response, song_queue_id)),
@@ -777,6 +847,7 @@ mod tests {
         };
 
         let _ = db_mgr::drop_database(&tm_pool, &db_name).await;
+        sequence_flow::delete_test_songs_from_bucket().await;
     }
 
     #[tokio::test]

@@ -6,8 +6,8 @@ pub async fn insert(
 ) -> Result<(time::OffsetDateTime, uuid::Uuid), sqlx::Error> {
     let result = sqlx::query(
         r#"
-        INSERT INTO "song" (title, artist, album_artist, album, genre, year, track, disc, track_count, disc_count, duration, audio_type, filename, directory, user_id) 
-        VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING date_created, id;
+        INSERT INTO "song" (title, artist, album_artist, album, genre, year, track, disc, track_count, disc_count, duration, audio_type, filename, directory, file_key, user_id) 
+        VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING date_created, id;
         "#
         )
         .bind(&song.title)
@@ -24,6 +24,7 @@ pub async fn insert(
         .bind(&song.audio_type)
         .bind(&song.filename)
         .bind(&song.directory)
+        .bind(&song.file_key)
         .bind(song.user_id)
         .fetch_one(pool)
         .await
@@ -133,6 +134,10 @@ pub async fn get_song(
                     .try_get("directory")
                     .map_err(|_e| sqlx::Error::RowNotFound)
                     .unwrap(),
+                file_key: row
+                    .try_get("file_key")
+                    .map_err(|_e| sqlx::Error::RowNotFound)
+                    .unwrap(),
                 date_created: Some(date_created_time),
                 user_id: row
                     .try_get("user_id")
@@ -228,6 +233,10 @@ pub async fn get_all_songs(pool: &sqlx::PgPool) -> Result<Vec<simodels::song::So
                         .try_get("directory")
                         .map_err(|_e| sqlx::Error::RowNotFound)
                         .unwrap(),
+                    file_key: row
+                        .try_get("file_key")
+                        .map_err(|_e| sqlx::Error::RowNotFound)
+                        .unwrap(),
                     date_created: Some(date_created_time),
                     user_id: row
                         .try_get("user_id")
@@ -254,7 +263,7 @@ pub async fn delete_song(
         r#"
         DELETE FROM "song"
         WHERE id = $1
-        RETURNING id, title, artist, album, album_artist, genre, year, disc, track, track_count, disc_count, duration, audio_type, date_created, filename, directory, user_id
+        RETURNING id, title, artist, album, album_artist, genre, year, disc, track, track_count, disc_count, duration, audio_type, date_created, filename, directory, file_key, user_id
         "#,
     )
     .bind(id)
@@ -330,6 +339,10 @@ pub async fn delete_song(
                     .unwrap(),
                 directory: row
                     .try_get("directory")
+                    .map_err(|_e| sqlx::Error::RowNotFound)
+                    .unwrap(),
+                file_key: row
+                    .try_get("file_key")
                     .map_err(|_e| sqlx::Error::RowNotFound)
                     .unwrap(),
                 date_created: Some(date_created_time),

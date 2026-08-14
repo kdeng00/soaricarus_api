@@ -159,8 +159,14 @@ pub mod endpoint {
                             }
                         }
 
-                        match song.save_to_filesystem() {
-                            Ok(_) => match repo::song::insert(&pool, &song).await {
+                        song.file_key = format!("processed/song/{}", song.filename);
+                        let data_of_song = labyrinth::Data {
+                            raw_data: song.data.clone(),
+                            ..Default::default()
+                        };
+
+                        match lr.upload(&song.file_key, &data_of_song).await {
+                            Ok(_resp) => match repo::song::insert(&pool, &song).await {
                                 Ok((date_created, id)) => {
                                     song.id = id;
                                     song.date_created = Some(date_created);
@@ -176,7 +182,7 @@ pub mod endpoint {
                                 }
                             },
                             Err(err) => {
-                                response.message = err.to_string();
+                                eprintln!("Error: {err:?}");
                                 (
                                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                                     axum::Json(response),
@@ -290,40 +296,90 @@ pub mod endpoint {
         axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     ) -> impl IntoResponse {
         match repo::song::get_song(&pool, &id).await {
-            Ok(song) => {
-                let song_path = song.song_path().unwrap();
-                let path = std::path::Path::new(&song_path);
+            Ok(mut song) => {
+                let lab_config = crate::util::maze::get_config();
+                let lr = labyrinth::Labyrinth { config: lab_config };
 
-                if !path.starts_with(&song.directory) || !path.exists() {
-                    return Err((axum::http::StatusCode::NOT_FOUND, "File not found"));
-                }
+                match lr.download(&song.file_key).await {
+                    Ok(data) => {
+                        song.filename = simodels::song::generate_filename(
+                            simodels::types::MusicType::FlacExtension,
+                            true,
+                        )
+                        .unwrap();
+                        // TODO: At some point, directory will no longer be needed with s3
+                        song.directory = sienvy::environment::get_root_directory().value;
+                        song.data = data;
 
-                let file = match tokio::fs::File::open(&path).await {
-                    Ok(file) => file,
-                    Err(_) => return Err((axum::http::StatusCode::NOT_FOUND, "File not found")),
-                };
+                        match song.save_to_filesystem() {
+                            Ok(_) => {
+                                let song_path = song.song_path().unwrap();
+                                let path = std::path::Path::new(&song_path);
 
-                let file_size = match file.metadata().await {
-                    Ok(meta) => meta.len(),
-                    Err(_) => {
-                        return Err((
-                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                            "Could not read file",
-                        ));
+                                if !path.starts_with(&song.directory) || !path.exists() {
+                                    return Err((
+                                        axum::http::StatusCode::NOT_FOUND,
+                                        "File not found",
+                                    ));
+                                }
+
+                                let file = match tokio::fs::File::open(&path).await {
+                                    Ok(file) => file,
+                                    Err(_) => {
+                                        return Err((
+                                            axum::http::StatusCode::NOT_FOUND,
+                                            "File not found",
+                                        ));
+                                    }
+                                };
+
+                                let file_size = match file.metadata().await {
+                                    Ok(meta) => meta.len(),
+                                    Err(_) => {
+                                        return Err((
+                                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                            "Could not read file",
+                                        ));
+                                    }
+                                };
+
+                                let mime = mime_guess::from_path(path).first_or_octet_stream();
+                                let stream = tokio_util::io::ReaderStream::new(file);
+
+                                let rep = axum::response::Response::builder()
+                                    .header("content-type", mime.to_string())
+                                    .header("accept-ranges", "bytes")
+                                    .header("content-length", file_size.to_string())
+                                    .body(axum::body::Body::from_stream(stream))
+                                    .unwrap();
+                                match song.remove_from_filesystem() {
+                                    Ok(_) => Ok(rep),
+                                    Err(err) => {
+                                        eprintln!("Error: {err:?}");
+                                        Err((
+                                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                            "Could not read file",
+                                        ))
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                eprintln!("Error: {err:?}");
+                                Err((
+                                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                    "Could not find file",
+                                ))
+                            }
+                        }
                     }
-                };
-
-                let mime = mime_guess::from_path(path).first_or_octet_stream();
-                let stream = tokio_util::io::ReaderStream::new(file);
-
-                let rep = axum::response::Response::builder()
-                    .header("content-type", mime.to_string())
-                    .header("accept-ranges", "bytes")
-                    .header("content-length", file_size.to_string())
-                    .body(axum::body::Body::from_stream(stream))
-                    .unwrap();
-
-                Ok(rep)
+                    Err(err) => {
+                        eprintln!("Error: {err:?}");
+                        Err((
+                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                            "Could not find file",
+                        ))
+                    }
+                }
             }
             Err(_err) => Err((
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -347,8 +403,11 @@ pub mod endpoint {
         axum::Extension(pool): axum::Extension<sqlx::PgPool>,
         axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     ) -> (axum::http::StatusCode, axum::response::Response) {
+        let lab_config = crate::util::maze::get_config();
+        let lr = labyrinth::Labyrinth { config: lab_config };
+
         match repo::song::get_song(&pool, &id).await {
-            Ok(song) => match simodels::song::io::to_data(&song) {
+            Ok(song) => match lr.download(&song.file_key).await {
                 Ok(data) => {
                     let bytes = axum::body::Bytes::from(data);
                     let mut response = bytes.into_response();
@@ -397,6 +456,8 @@ pub mod endpoint {
         axum::Json<super::response::delete_song::Response>,
     ) {
         let mut response = super::response::delete_song::Response::default();
+        let lab_config = crate::util::maze::get_config();
+        let lr = labyrinth::Labyrinth { config: lab_config };
 
         match repo::song::get_song(&pool, &id).await {
             Ok(song) => {
@@ -420,7 +481,7 @@ pub mod endpoint {
                                     match repo::coverart::delete_coverart(&pool, &coverart.id).await
                                     {
                                         Ok(deleted_coverart) => {
-                                            match song.remove_from_filesystem() {
+                                            match lr.delete(&song.file_key).await {
                                                 Ok(_) => match coverart.remove_from_filesystem() {
                                                     Ok(_) => {
                                                         response.message = String::from(
@@ -438,7 +499,7 @@ pub mod endpoint {
                                                     }
                                                 },
                                                 Err(err) => {
-                                                    response.message = err.to_string();
+                                                    eprintln!("Error: {err:?}");
                                                     (axum::http::StatusCode::INTERNAL_SERVER_ERROR, axum::Json(response))
                                                 }
                                             }

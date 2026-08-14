@@ -182,7 +182,7 @@ pub mod endpoint {
 
                     let lr = labyrinth::Labyrinth { config: lab_config };
                     let data = labyrinth::Data {
-                        raw_data: raw_data,
+                        raw_data,
                         ..Default::default()
                     };
 
