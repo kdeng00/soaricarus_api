@@ -63,14 +63,16 @@ pub mod endpoint {
         let mut response = super::response::create_coverart::Response::default();
         let id = payload.coverart_queue_id;
 
-        match repo_queue::coverart::get_coverart_queue_data_with_id(&pool, &id).await {
-            Ok(data) => {
-                let song_id = payload.song_id;
-                match crate::repo::song::get_song(&pool, &song_id).await {
-                    Ok(song) => {
-                        let directory = sienvy::environment::get_root_directory().value;
+        match repo_queue::data::queue::coverart::get_with_coverart_queue_id(&pool, &id).await {
+            Ok((_id, file_key, _bucket, _region, _)) => {
+                let lab_config = crate::util::maze::get_config();
+                let lr = labyrinth::Labyrinth { config: lab_config };
+
+                match lr.download(&file_key).await {
+                    Ok(data) => {
                         let file_type =
                             simeta::detection::coverart::file_type_from_data(&data).unwrap();
+
                         let coverart_type = if file_type.file_type
                             == simeta::detection::coverart::constants::JPEG_TYPE
                         {
@@ -93,34 +95,78 @@ pub mod endpoint {
                         let filename =
                             simodels::coverart::generate_filename(coverart_type, true).unwrap();
 
-                        let mut coverart = simodels::coverart::init::init_coverart_dir_and_filename(
-                            &directory, &filename,
-                        );
-                        coverart.title = song.album.clone();
-                        coverart.file_type = file_type.file_type;
-                        coverart.data = data;
+                        let data = labyrinth::Data {
+                            raw_data: data,
+                            ..Default::default()
+                        };
+                        let new_file_key = format!("processed/song/{filename}");
 
-                        match coverart.save_to_filesystem() {
-                            Ok(_) => {
-                                match repo::coverart::create(&pool, &coverart, &song.id).await {
-                                    Ok(id) => {
-                                        coverart.song_id = song_id;
-                                        coverart.id = id;
-                                        println!("Cover Art created");
+                        match lr.upload(&new_file_key, &data).await {
+                            Ok(_resp) => {
+                                // TODO: Change it to the s3 bucket
+                                let directory = sienvy::environment::get_root_directory().value;
+                                let mut coverart =
+                                    simodels::coverart::init::init_coverart_dir_and_filename(
+                                        &directory, &filename,
+                                    );
+                                let song = match crate::repo::song::get_song(
+                                    &pool,
+                                    &payload.song_id,
+                                )
+                                .await
+                                {
+                                    Ok(song) => song,
+                                    Err(err) => {
+                                        eprintln!("Error: {err:?}");
+                                        return (
+                                            axum::http::StatusCode::BAD_REQUEST,
+                                            axum::Json(response),
+                                        );
+                                    }
+                                };
+                                coverart.title = song.album.clone();
+                                coverart.file_type = file_type.file_type;
+                                coverart.data = data.raw_data;
 
-                                        response.message = String::from("Successful");
-                                        response.data.push(coverart);
+                                match coverart.save_to_filesystem() {
+                                    Ok(_) => {
+                                        match repo::coverart::create(
+                                            &pool,
+                                            &coverart,
+                                            &payload.song_id,
+                                        )
+                                        .await
+                                        {
+                                            Ok(id) => {
+                                                coverart.song_id = payload.song_id;
+                                                coverart.id = id;
+                                                println!("Cover Art created");
 
-                                        (axum::http::StatusCode::OK, axum::Json(response))
+                                                response.message = String::from("Successful");
+                                                response.data.push(coverart);
+
+                                                (axum::http::StatusCode::OK, axum::Json(response))
+                                            }
+                                            Err(err) => {
+                                                response.message = err.to_string();
+                                                (
+                                                    axum::http::StatusCode::BAD_REQUEST,
+                                                    axum::Json(response),
+                                                )
+                                            }
+                                        }
                                     }
                                     Err(err) => {
                                         response.message = err.to_string();
-                                        (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))
+                                        (
+                                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                            axum::Json(response),
+                                        )
                                     }
                                 }
                             }
                             Err(err) => {
-                                response.message = err.to_string();
+                                eprintln!("Error: {err:?}");
                                 (
                                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                                     axum::Json(response),
@@ -129,14 +175,20 @@ pub mod endpoint {
                         }
                     }
                     Err(err) => {
-                        response.message = err.to_string();
-                        (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))
+                        eprintln!("Error: {err:?}");
+                        (
+                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                            axum::Json(response),
+                        )
                     }
                 }
             }
             Err(err) => {
-                response.message = err.to_string();
-                (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))
+                eprintln!("Error: {err:?}");
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(response),
+                )
             }
         }
     }

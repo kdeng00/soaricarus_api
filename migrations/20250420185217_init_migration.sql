@@ -28,9 +28,16 @@ CREATE TABLE IF NOT EXISTS "metadataQueue" (
 -- Table to store queued coverart
 CREATE TABLE IF NOT EXISTS "coverartQueue" (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    data BYTEA NULL,
     file_type TEXT NOT NULL,
     song_queue_id UUID NULL
+);
+
+CREATE TABLE IF NOT EXISTS "coverartQueueData" (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    file_key TEXT NOT NULL,
+    bucket TEXT NOT NULL,
+    region TEXT NOT NULL,
+    coverart_queue_id UUID NOT NULL
 );
 
 -- Create an index for better query performance

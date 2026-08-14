@@ -178,14 +178,60 @@ pub mod endpoint {
                         file_type
                     );
 
-                    match repo::coverart::insert(&pool, &raw_data, &file_type.file_type).await {
-                        Ok(id) => {
-                            response.message = String::from("Successful");
-                            response.data.push(id);
-                            (axum::http::StatusCode::OK, axum::Json(response))
+                    let lab_config = crate::util::maze::get_config();
+
+                    let lr = labyrinth::Labyrinth { config: lab_config };
+                    let data = labyrinth::Data {
+                        raw_data: raw_data,
+                        ..Default::default()
+                    };
+
+                    let filename = simodels::coverart::generate_filename(
+                        simodels::types::CoverArtType::JpegExtension,
+                        true,
+                    )
+                    .unwrap();
+                    let file_path = format!("queued/coverart/{filename}");
+
+                    println!("Key: {file_path:?}");
+
+                    match lr.upload(&file_path, &data).await {
+                        Ok(_res) => {
+                            match repo::coverart::insert(&pool, &file_type.file_type).await {
+                                Ok(id) => {
+                                    println!("Inserting queued data");
+                                    match repo::data::queue::coverart::insert(
+                                        &pool,
+                                        &file_path,
+                                        &lr.config.bucket,
+                                        &lr.config.region,
+                                        &id,
+                                    )
+                                    .await
+                                    {
+                                        Ok(_id) => {
+                                            println!("Successfully did it");
+                                            response.message = String::from("Successful");
+                                            response.data.push(id);
+                                            (axum::http::StatusCode::OK, axum::Json(response))
+                                        }
+                                        Err(err) => {
+                                            response.message = err.to_string();
+                                            (
+                                                axum::http::StatusCode::BAD_REQUEST,
+                                                axum::Json(response),
+                                            )
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    response.message = err.to_string();
+                                    (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))
+                                }
+                            }
                         }
                         Err(err) => {
-                            response.message = err.to_string();
+                            eprintln!("Error: {err:?}");
                             (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))
                         }
                     }
@@ -313,47 +359,73 @@ pub mod endpoint {
     )]
     pub async fn fetch_coverart_with_data(
         axum::Extension(pool): axum::Extension<sqlx::PgPool>,
-        axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+        axum::extract::Path(coverart_queue_id): axum::extract::Path<uuid::Uuid>,
     ) -> (axum::http::StatusCode, axum::response::Response) {
-        match repo::coverart::get_coverart_queue_data_with_id(&pool, &id).await {
-            Ok(data) => {
-                let file_type = simeta::detection::coverart::file_type_from_data(&data).unwrap();
-                let bytes = axum::body::Bytes::from(data);
-                let mut response = bytes.into_response();
-                let headers = response.headers_mut();
-                headers.insert(
-                    axum::http::header::CONTENT_TYPE,
-                    file_type.mime.parse().unwrap(),
-                );
+        match repo::data::queue::coverart::get_with_coverart_queue_id(&pool, &coverart_queue_id)
+            .await
+        {
+            Ok((_id, file_key, _bucket, _region, _)) => {
+                let lab_config = crate::util::maze::get_config();
+                let lr = labyrinth::Labyrinth { config: lab_config };
 
-                let coverart_type = if file_type.file_type
-                    == simeta::detection::coverart::constants::JPEG_TYPE
-                {
-                    simodels::types::CoverArtType::JpegExtension
-                } else if file_type.file_type == simeta::detection::coverart::constants::JPG_TYPE {
-                    simodels::types::CoverArtType::JpgExtension
-                } else if file_type.file_type == simeta::detection::coverart::constants::PNG_TYPE {
-                    simodels::types::CoverArtType::PngExtension
-                } else {
-                    return (
-                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                        axum::response::Response::default(),
-                    );
-                };
-                let filename = simodels::coverart::generate_filename(coverart_type, true).unwrap();
-                headers.insert(
-                    axum::http::header::CONTENT_DISPOSITION,
-                    format!("attachment; filename=\"{filename}\"")
-                        .parse()
-                        .unwrap(),
-                );
+                match lr.download(&file_key).await {
+                    Ok(data) => {
+                        let file_type =
+                            simeta::detection::coverart::file_type_from_data(&data).unwrap();
+                        let bytes = axum::body::Bytes::from(data);
+                        let mut response = bytes.into_response();
+                        let headers = response.headers_mut();
+                        headers.insert(
+                            axum::http::header::CONTENT_TYPE,
+                            file_type.mime.parse().unwrap(),
+                        );
 
-                (axum::http::StatusCode::OK, response)
+                        let coverart_type = if file_type.file_type
+                            == simeta::detection::coverart::constants::JPEG_TYPE
+                        {
+                            simodels::types::CoverArtType::JpegExtension
+                        } else if file_type.file_type
+                            == simeta::detection::coverart::constants::JPG_TYPE
+                        {
+                            simodels::types::CoverArtType::JpgExtension
+                        } else if file_type.file_type
+                            == simeta::detection::coverart::constants::PNG_TYPE
+                        {
+                            simodels::types::CoverArtType::PngExtension
+                        } else {
+                            return (
+                                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                axum::response::Response::default(),
+                            );
+                        };
+                        let filename =
+                            simodels::coverart::generate_filename(coverart_type, true).unwrap();
+                        headers.insert(
+                            axum::http::header::CONTENT_DISPOSITION,
+                            format!("attachment; filename=\"{filename}\"")
+                                .parse()
+                                .unwrap(),
+                        );
+
+                        (axum::http::StatusCode::OK, response)
+                    }
+                    Err(err) => {
+                        eprintln!("Error: {err:?}");
+                        (
+                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                            axum::response::Response::default(),
+                        )
+                    }
+                }
             }
-            Err(_err) => (
-                axum::http::StatusCode::BAD_REQUEST,
-                axum::response::Response::default(),
-            ),
+            Err(err) => {
+                eprintln!("Record not found");
+                eprintln!("Error: {err:?}");
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::response::Response::default(),
+                )
+            }
         }
     }
 
@@ -383,16 +455,39 @@ pub mod endpoint {
         let coverart_queue_id = payload.coverart_queue_id;
 
         match repo::coverart::get_coverart_queue_with_id(&pool, &coverart_queue_id).await {
-            Ok(coverart_queue) => {
-                match repo::coverart::wipe_data(&pool, &coverart_queue.id).await {
-                    Ok(id) => {
-                        response.message = String::from("Success");
-                        response.data.push(id);
-                        (axum::http::StatusCode::OK, axum::Json(response))
+            Ok(_coverart_queue) => {
+                match repo::data::queue::coverart::get_with_coverart_queue_id(
+                    &pool,
+                    &coverart_queue_id,
+                )
+                .await
+                {
+                    Ok((_id, file_key, _bucket, _region, _)) => {
+                        let lab_config = crate::util::maze::get_config();
+                        let lr = labyrinth::Labyrinth { config: lab_config };
+
+                        match lr.delete(&file_key).await {
+                            Ok(_) => {
+                                response.message = String::from("Success");
+                                response.data.push(coverart_queue_id);
+
+                                (axum::http::StatusCode::OK, axum::Json(response))
+                            }
+                            Err(err) => {
+                                eprintln!("Error: {err:?}");
+                                (
+                                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                    axum::Json(response),
+                                )
+                            }
+                        }
                     }
                     Err(err) => {
                         response.message = err.to_string();
-                        (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))
+                        (
+                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                            axum::Json(response),
+                        )
                     }
                 }
             }
