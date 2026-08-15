@@ -503,7 +503,15 @@ mod tests {
         pub const TEST_SONG_01_FILE_KEY: &str = "processed/song/track01.flac";
         pub const TEST_SONG_02_FILE_KEY: &str = "processed/song/track02.flac";
 
+        pub const TEST_COVERART_01_FILE_KEY: &str = "processed/coverart/Coverart-1.jpg";
+        pub const TEST_COVERART_02_FILE_KEY: &str = "processed/coverart/Coverart-2.jpg";
+
         pub struct SongBucket {
+            pub file_key: String,
+            pub path: String,
+        }
+
+        pub struct CoverArtBucket {
             pub file_key: String,
             pub path: String,
         }
@@ -533,6 +541,44 @@ mod tests {
                         };
 
                         match lr.upload(&song.file_key, &data).await {
+                            Ok(_) => {}
+                            Err(err) => {
+                                assert!(false, "Error: {err:?}");
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        assert!(false, "Error: {err:?}");
+                    }
+                };
+            }
+        }
+
+        pub async fn upload_test_coverarts_to_bucket() {
+            let coverarts = vec![
+                CoverArtBucket {
+                    file_key: TEST_COVERART_01_FILE_KEY.to_string(),
+                    path: "tests/I/Coverart-1.jpg".to_string(),
+                },
+                CoverArtBucket {
+                    file_key: TEST_COVERART_02_FILE_KEY.to_string(),
+                    path: "tests/I/Coverart-2.jpg".to_string(),
+                },
+            ];
+
+            let lab_config = soaricarus_api::util::maze::get_config();
+            let lr = labyrinth::Labyrinth { config: lab_config };
+
+            for coverart in &coverarts {
+                let p = std::path::Path::new(&coverart.path);
+                match tokio::fs::File::open(p).await {
+                    Ok(mut _file) => {
+                        let data = labyrinth::Data {
+                            filepath: coverart.path.clone(),
+                            ..Default::default()
+                        };
+
+                        match lr.upload(&coverart.file_key, &data).await {
                             Ok(_) => {}
                             Err(err) => {
                                 assert!(false, "Error: {err:?}");
@@ -633,6 +679,7 @@ mod tests {
             app: &axum::Router,
             song_queue_id: &uuid::Uuid,
         ) -> Result<axum::response::Response, axum::http::Error> {
+            upload_test_coverarts_to_bucket().await;
             match super::request::upload_coverart_queue_req(&app).await {
                 Ok(response) => {
                     let resp = super::util::get_resp_data::<

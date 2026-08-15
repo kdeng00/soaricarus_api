@@ -1,6 +1,6 @@
 [package]
 name = "soaricarus_api"
-version = "0.5.6"
+version = "0.5.7"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT"
@@ -12,24 +12,24 @@ axum-extra = { version = "0.12.6", features = ["cookie"] }
 openssl = { version = "0.10.81", features = ["vendored"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151" }
-tokio = { version = "1.52.3", features = ["full"] }
-tokio-util = { version = "0.7.18", features = ["io"] }
+tokio = { version = "1.53.1", features = ["full"] }
+tokio-util = { version = "0.7.19", features = ["io"] }
 tower = { version = "0.5.3", features = ["full"] }
 tower-http = { version = "0.7.0", features = ["cors", "timeout"] }
 tracing-subscriber = "0.3.23"
-futures = { version = "0.3.32" }
+futures = { version = "0.3.34" }
 mime_guess = { version = "2.0.5" }
-uuid = { version = "1.24.0", features = ["v4", "serde"] }
+uuid = { version = "1.24.1", features = ["v4", "serde"] }
 sqlx = { version = "0.9.0", features = ["postgres", "runtime-tokio", "tls-native-tls", "time", "uuid"] }
-time = { version = "0.3.54", features = ["formatting", "macros", "parsing", "serde"]  }
+time = { version = "0.3.55", features = ["formatting", "macros", "parsing", "serde"]  }
 jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 josekit = { version = "0.10.3" }
 utoipa = { version = "5.5.0", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
-simeta = { git = "ssh://git@git.kundeng.us/phoenix/simeta.git", tag = "v0.6.1-main-b690995806-680" }
-simodels = { git = "ssh://git@git.kundeng.us/phoenix/simodels.git", tag = "v0.11.4" }
-sienvy = { git = "ssh://git@git.kundeng.us/phoenix/sienvy.git", tag = "v0.8.0-main-d06c8fdf49-006" }
-labyrinth = { git = "ssh://git@git.kundeng.us/phoenix/labyrinth.git", tag = "v0.0.4" }
+simeta = { git = "ssh://git@git.kundeng.us/phoenix/simeta.git", tag = "v0.6.2" }
+simodels = { git = "ssh://git@git.kundeng.us/phoenix/simodels.git", tag = "v0.11.5-main-94d97cb81d-111" }
+sienvy = { git = "ssh://git@git.kundeng.us/phoenix/sienvy.git", tag = "v0.8.1" }
+labyrinth = { git = "ssh://git@git.kundeng.us/phoenix/labyrinth.git", tag = "v0.0.5" }
 
 [dev-dependencies]
 common-multipart-rfc7578 = { version = "0.7.0" }

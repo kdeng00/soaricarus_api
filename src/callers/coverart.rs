@@ -99,7 +99,7 @@ pub mod endpoint {
                             raw_data: data,
                             ..Default::default()
                         };
-                        let new_file_key = format!("processed/song/{filename}");
+                        let new_file_key = format!("processed/coverart/{filename}");
 
                         match lr.upload(&new_file_key, &data).await {
                             Ok(_resp) => {
@@ -127,41 +127,24 @@ pub mod endpoint {
                                 coverart.title = song.album.clone();
                                 coverart.file_type = file_type.file_type;
                                 coverart.data = data.raw_data;
+                                coverart.file_key = new_file_key;
 
-                                match coverart.save_to_filesystem() {
-                                    Ok(_) => {
-                                        match repo::coverart::create(
-                                            &pool,
-                                            &coverart,
-                                            &payload.song_id,
-                                        )
-                                        .await
-                                        {
-                                            Ok(id) => {
-                                                coverart.song_id = payload.song_id;
-                                                coverart.id = id;
-                                                println!("Cover Art created");
+                                match repo::coverart::create(&pool, &coverart, &payload.song_id)
+                                    .await
+                                {
+                                    Ok(id) => {
+                                        coverart.song_id = payload.song_id;
+                                        coverart.id = id;
+                                        println!("Cover Art created");
 
-                                                response.message = String::from("Successful");
-                                                response.data.push(coverart);
+                                        response.message = String::from("Successful");
+                                        response.data.push(coverart);
 
-                                                (axum::http::StatusCode::OK, axum::Json(response))
-                                            }
-                                            Err(err) => {
-                                                response.message = err.to_string();
-                                                (
-                                                    axum::http::StatusCode::BAD_REQUEST,
-                                                    axum::Json(response),
-                                                )
-                                            }
-                                        }
+                                        (axum::http::StatusCode::OK, axum::Json(response))
                                     }
                                     Err(err) => {
                                         response.message = err.to_string();
-                                        (
-                                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                                            axum::Json(response),
-                                        )
+                                        (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))
                                     }
                                 }
                             }
@@ -249,8 +232,11 @@ pub mod endpoint {
         axum::Extension(pool): axum::Extension<sqlx::PgPool>,
         axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
     ) -> (axum::http::StatusCode, axum::response::Response) {
+        let lab_config = crate::util::maze::get_config();
+        let lr = labyrinth::Labyrinth { config: lab_config };
+
         match repo::coverart::get_coverart(&pool, &id).await {
-            Ok(coverart) => match simodels::coverart::io::to_data(&coverart) {
+            Ok(coverart) => match lr.download(&coverart.file_key).await {
                 Ok(data) => {
                     let (file_type, img_type) =
                         match simeta::detection::coverart::file_type_from_data(&data) {
