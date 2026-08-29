@@ -25,6 +25,7 @@ mod cors {
         let cors = tower_http::cors::CorsLayer::new()
             .allow_methods([
                 axum::http::Method::GET,
+                axum::http::Method::PATCH,
                 axum::http::Method::POST,
                 axum::http::Method::PUT,
                 axum::http::Method::DELETE,

@@ -1,6 +1,6 @@
 [package]
 name = "soaricarus_api"
-version = "0.5.7"
+version = "0.5.8"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT"
