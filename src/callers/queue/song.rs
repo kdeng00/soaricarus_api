@@ -201,7 +201,7 @@ pub mod endpoint {
                                                     }
                                                 }
                                             }
-                                            Err(err) => match err {
+                                            Err(err) => match *err {
                                                 labyrinth::Error::Info(err_str) => {
                                                     eprintln!("Error: {:?}", err_str);
                                                     response.message = err_str.to_string();
