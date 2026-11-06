@@ -2143,6 +2143,59 @@ mod tests {
             let _ = super::db_mgr::drop_database(&tm_pool, &db_name).await;
         }
 
+        #[tokio::test]
+        async fn test_get_coverart_with_song_id() {
+            let tm_pool = super::db_mgr::get_pool().await.unwrap();
+            let db_name = super::db_mgr::generate_db_name().await;
+
+            match super::db_mgr::create_database(&tm_pool, &db_name).await {
+                Ok(_) => {
+                    println!("Success");
+                }
+                Err(err) => {
+                    assert!(false, "Error: {:?}", err);
+                }
+            }
+
+            let pool = super::db_mgr::connect_to_db(&db_name).await.unwrap();
+            super::db_mgr::migrations(&pool).await;
+
+            let app = super::init::app(pool).await;
+
+            let (song_id, _, _, _) = test_data::song_id().await.unwrap();
+
+            let uri = format!(
+                "{}?song_id={song_id}",
+                soaricarus_api::callers::endpoints::GETCOVERART
+            );
+
+            match app
+                .clone()
+                .oneshot(
+                    super::request::run_post(None, &uri, axum::http::Method::GET, false)
+                        .await
+                        .unwrap(),
+                )
+                .await
+            {
+                Ok(response) => {
+                    let resp = super::util::get_resp_data::<
+                        soaricarus_api::callers::coverart::response::get_coverart::Response,
+                    >(response)
+                    .await;
+                    assert_eq!(false, resp.data.is_empty(), "Should not be empty");
+
+                    let coverart = resp.data[0].clone();
+                    assert_eq!(song_id, coverart.song_id, "Song Id does not match {coverart:?}");
+                }
+                Err(err) => {
+                    assert!(false, "Error: {err:?}");
+                }
+            }
+
+            let _ = super::db_mgr::drop_database(&tm_pool, &db_name).await;
+        }
+
         pub mod test_data {
             pub async fn song_id() -> Result<(uuid::Uuid, String, String, String), uuid::Error> {
                 match uuid::Uuid::parse_str("44cf7940-34ff-489f-9124-d0ec90a55af9") {
