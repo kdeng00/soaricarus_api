@@ -19,6 +19,11 @@ Copy the `.env.docker.sample` file to `.env`. Ensure that the `ROOT_DIRECTORY` v
 and exists on the docker image's filesystem. The credentials for the database doesn't need to be
 changed for development, but if deploying it, it should be modified.
 
+### Authentication setup
+Make sure the `SECRET_MAIN_KEY` variable in the `.env` file is at least **24** characters long
+and it should match the same value as the `SECRET_KEY` variable from `soaricarus_auth`.
+
+
 ### S3 Setup
 Using the copied `.env.docker.sample`, ensure that the following has been properly populated.
 ```
@@ -41,7 +46,7 @@ docker compose build --ssh default
 
 Bring it up
 ```
-docker compose up -d --force-recreate
+docker compose up
 ```
 
 To view the OpenAPI spec, run the project and access `/swagger-ui`. If running through docker,
