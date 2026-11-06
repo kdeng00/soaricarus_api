@@ -18,6 +18,8 @@ services:
         condition: service_started
       auth_api:
         condition: service_started
+      logledger_api:
+        condition: service_started
     networks:
       - soaricarus-network
     restart: unless-stopped
@@ -42,6 +44,25 @@ services:
     # Optional: Mount local code for development (live reload)
     # volumes:
     #  - ./path/to/your/web-api-repo:/app
+
+  logledger_api:
+    build:
+      context: ../logledger_api
+      ssh: ["default"]
+      dockerfile: Dockerfile
+    container_name: logledger_api
+    ports:
+      - "8200:8200"
+    env_file:
+      - ../logledger_api/.env
+    depends_on:
+      logledger_db:
+        condition: service_healthy
+    volumes:
+      - logledger_data:/shared:ro  # Mount as read-only 
+    networks:
+      - soaricarus-network
+    restart: unless-stopped
 
   # --- songparser service ---
   songparser:
@@ -77,23 +98,23 @@ services:
       GARAGE_S3_API_ROOT_DOMAIN: "${GARAGE_ROOT_DOMAIN}"
       GARAGE_ADMIN_BIND_ADDR: "0.0.0.0:3902"
       GARAGE_ADMIN_PUBLIC_BIND_ADDR: "0.0.0.0:3902"
-      
+
       # Cluster configuration (single node for simplicity)
       GARAGE_CLUSTER_REPLICATION_MODE: "none"  # Single node
       GARAGE_CLUSTER_PEER_REPLICATION_STRATEGY: "ring"
-      
+
       # Data storage
       GARAGE_DATA_DIR: "/data"
       GARAGE_METADATA_DIR: "/data/meta"
-      
+
       # RPC configuration
       GARAGE_RPC_PUBLIC_ADDR: "http://maze:3901"
       GARAGE_RPC_BIND_ADDR: "0.0.0.0:3901"
       GARAGE_RPC_SECRET: "${GARAGE_RPC_SECRET}"  # 32+ chars
-      
+
       # Web Admin
       GARAGE_ADMIN_TOKEN: "${GARAGE_ADMIN_TOKEN}"
-      
+
       # Logging
       GARAGE_LOG_LEVEL: "info"
 
@@ -107,8 +128,8 @@ services:
       AWS_ACCESS_KEY_ID: "${GARAGE_DEFAULT_ACCESS_KEY}"
       AWS_SECRET_ACCESS_KEY: "${GARAGE_DEFAULT_SECRET_KEY}"
       AWS_DEFAULT_REGION: "${GARAGE_DEFAULT_BUCKET}"
-      AWS_S3_FORCE_PATH_STYLE: "true"   
-      
+      AWS_S3_FORCE_PATH_STYLE: "true"
+
     volumes:
       - ./garage.toml:/etc/garage.toml:ro  # Mount config file
       - shared_credentials:/data  # Persist Garage data
@@ -178,14 +199,42 @@ services:
     networks:
       - soaricarus-network
 
+  logledger_db:
+    image: postgres:18.6-alpine
+    container_name: logledger_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_LOG_USER:-logledger}
+      POSTGRES_PASSWORD: ${POSTGRES_LOG_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_LOG_DB:-logledger_db}
+    volumes:
+      # Persist database data using a named volume
+      - postgres_data_logledger:/var/lib/postgresql
+    ports:
+      - "5434:5432"
+    healthcheck:
+        # Checks if Postgres is ready to accept connections
+        test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+        start_period: 10s
+    restart: always
+    networks:
+      - soaricarus-network
+
+
 volumes:
   postgres_data:
     driver: local # Use the default local driver
   postgres_data_auth:
     driver: local # Use the default local driver
+  postgres_data_logledger:
+    driver: local
   object_data:
     driver: local # Use the default local driver
   shared_credentials:  # New shared volume
+    driver: local
+  logledger_data:  # New shared volume
     driver: local
 
 networks:
