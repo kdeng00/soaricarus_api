@@ -11,6 +11,7 @@ pub mod request {
         #[derive(Debug, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
         pub struct Params {
             pub id: Option<uuid::Uuid>,
+            pub song_id: Option<uuid::Uuid>,
         }
     }
 }
@@ -181,7 +182,8 @@ pub mod endpoint {
         get,
         path = super::super::endpoints::GETCOVERART,
         params(
-            ("id" = uuid::Uuid, Path, description = "Cover art Id")
+            ("id" = uuid::Uuid, Path, description = "Cover art Id"),
+            ("song_id" = uuid::Uuid, Path, description = "Song Id")
             ),
         responses(
             (status = 200, description = "Cover art retrieved", body = super::response::get_coverart::Response),
@@ -201,7 +203,7 @@ pub mod endpoint {
             Some(id) => match repo::coverart::get_coverart(&pool, &id).await {
                 Ok(coverart) => {
                     response.data.push(coverart);
-                    response.message = String::from(super::super::response::SUCCESSFUL);
+                    response.message = super::super::response::SUCCESSFUL.to_string();
                     (axum::http::StatusCode::OK, axum::Json(response))
                 }
                 Err(err) => {
@@ -209,10 +211,28 @@ pub mod endpoint {
                     (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))
                 }
             },
-            None => {
-                response.message = String::from("Invalid parameters");
-                (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))
-            }
+            _ => match params.song_id {
+                Some(song_id) => {
+                    match repo::coverart::get_coverart_with_song_id(&pool, &song_id).await {
+                        Ok(coverart) => {
+                            response.data.push(coverart);
+                            response.message = super::super::response::SUCCESSFUL.to_string();
+                            (axum::http::StatusCode::OK, axum::Json(response))
+                        }
+                        Err(err) => {
+                            response.message = err.to_string();
+                            (
+                                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                axum::Json(response),
+                            )
+                        }
+                    }
+                }
+                None => {
+                    response.message = "Invalid parameters".to_string();
+                    (axum::http::StatusCode::BAD_REQUEST, axum::Json(response))
+                }
+            },
         }
     }
 
