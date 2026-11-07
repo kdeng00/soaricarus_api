@@ -3190,7 +3190,7 @@ dependencies = [
 
 [[package]]
 name = "soaricarus_api"
-version = "0.5.11"
+version = "0.5.12"
 dependencies = [
  "axum",
  "axum-extra",
