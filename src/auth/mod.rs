@@ -42,7 +42,7 @@ pub async fn auth<B>(
     validation.set_audience(&["soaricarus"]);
     let _claims = decode::<simodels::token::UserClaims>(
         &token,
-        &DecodingKey::from_secret(secret_key.as_ref()),
+        &DecodingKey::from_secret(secret_key.as_ref()).unwrap(),
         &validation,
     )
     .map_err(|err| {

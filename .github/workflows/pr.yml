@@ -12,7 +12,7 @@ concurrency:
 jobs:
   test:
     name: Test Suite
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     services:
       postgres:
@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: 1.99
+          toolchain: 1.99.1
       - uses: Swatinem/rust-cache@v2
       - name: Verify Docker Environment
         run: |
@@ -49,7 +49,7 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: "${{ secrets.GARAGE_KEY_ID }}"
           AWS_SECRET_ACCESS_KEY: "${{ secrets.GARAGE_SECRET }}"
-          AWS_DEFAULT_REGION: us-east-1
+          AWS_DEFAULT_REGION: "${{ secrets.GARAGE_REGION }}"
           ENDPOINT_URL: "${{ secrets.S3_CI_ENDPOINT_URL}}"
         run: |
           sudo apt update

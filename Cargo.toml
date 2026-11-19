@@ -1,8 +1,8 @@
 [package]
 name = "soaricarus_api"
-version = "0.5.12"
+version = "0.5.13"
 edition = "2024"
-rust-version = "1.95"
+rust-version = "1.99.1"
 license = "MIT"
 description = "Core API for interacting with soaricarus"
 
@@ -19,17 +19,17 @@ tower-http = { version = "0.7.1", features = ["cors", "timeout"] }
 tracing-subscriber = "0.3.23"
 futures = { version = "0.3.34" }
 mime_guess = { version = "2.0.5" }
-uuid = { version = "1.29.0", features = ["v4", "serde"] }
-sqlx = { version = "0.9.0", features = ["postgres", "runtime-tokio", "tls-native-tls", "time", "uuid"] }
+uuid = { version = "1.29.3", features = ["v4", "serde"] }
+sqlx = { version = "0.9.1", features = ["postgres", "runtime-tokio", "tls-native-tls", "time", "uuid"] }
 time = { version = "0.3.55", features = ["formatting", "macros", "parsing", "serde"]  }
-jsonwebtoken = { version = "11.0.0", features = ["rust_crypto"] }
+jsonwebtoken = { version = "12.0.0", features = ["rust_crypto"] }
 josekit = { version = "0.10.3" }
 utoipa = { version = "6.0.0", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "10.0.2", features = ["axum"] }
-simeta = { git = "ssh://git@git.kundeng.us/phoenix/simeta.git", tag = "v0.6.4" }
-simodels = { git = "ssh://git@git.kundeng.us/phoenix/simodels.git", tag = "v0.11.9" }
-sienvy = { git = "ssh://git@git.kundeng.us/phoenix/sienvy.git", tag = "v0.8.3" }
-labyrinth = { git = "ssh://git@git.kundeng.us/phoenix/labyrinth.git", tag = "v0.0.8" }
+simeta = { git = "ssh://git@git.kundeng.us/phoenix/simeta.git", tag = "v0.6.5" }
+simodels = { git = "ssh://git@git.kundeng.us/phoenix/simodels.git", tag = "v0.11.20" }
+sienvy = { git = "ssh://git@git.kundeng.us/phoenix/sienvy.git", tag = "v0.8.4" }
+labyrinth = { git = "ssh://git@git.kundeng.us/phoenix/labyrinth.git", tag = "v0.0.10" }
 
 
 [dev-dependencies]
