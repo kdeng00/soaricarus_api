@@ -5,6 +5,8 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS "songQueue" (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     filename TEXT NOT NULL,
+    -- TODO: Make it uppercase and check other areas of soaricarus to make
+    -- sure it is consistent
     status TEXT CHECK (status IN ('pending', 'ready', 'processing', 'done')),
     user_id UUID NULL
 );

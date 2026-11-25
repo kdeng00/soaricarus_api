@@ -21,7 +21,7 @@ mod tests {
 
     use tower::ServiceExt;
 
-    use soaricarus_api::db;
+    use soaricarus_api::{callers, db};
 
     mod db_mgr {
         use std::str::FromStr;
@@ -117,13 +117,15 @@ mod tests {
     }
 
     mod util {
+        use axum::response;
+
         pub async fn resp_to_bytes(
-            response: axum::response::Response,
+            response: response::Response,
         ) -> Result<axum::body::Bytes, axum::Error> {
             axum::body::to_bytes(response.into_body(), usize::MAX).await
         }
 
-        pub async fn get_resp_data<Data>(response: axum::response::Response) -> Data
+        pub async fn get_resp_data<Data>(response: response::Response) -> Data
         where
             Data: for<'a> serde::Deserialize<'a>,
         {
@@ -137,35 +139,41 @@ mod tests {
         }
     }
 
-    pub fn token_fields() -> (String, String, String) {
-        (
-            String::from("What a twist!"),
-            String::from("soaricarus_test"),
-            String::from("soaricarus"),
-        )
-    }
+    mod test_data {
+        pub const TEST_USER_ID: uuid::Uuid = uuid::uuid!("cc938368-615a-4694-b2ca-6e122fa31c52");
+        pub const TEST_SONG_ID: uuid::Uuid = uuid::uuid!("44cf7940-34ff-489f-9124-d0ec90a55af9");
 
-    pub const TEST_USER_ID: uuid::Uuid = uuid::uuid!("cc938368-615a-4694-b2ca-6e122fa31c52");
+        pub const DEVICE_TYPE: &str = "BROWSER";
+        pub const NAME: &str = "DougDimmaDome Browser Queue";
 
-    pub async fn test_token() -> Result<String, josekit::JoseError> {
-        let key: String = sienvy::environment::get_secret_main_key().value;
-        let (message, issuer, audience) = token_fields();
+        pub async fn test_token() -> Result<String, josekit::JoseError> {
+            let key: String = sienvy::environment::get_secret_main_key().value;
+            let (message, issuer, audience) = token_fields();
 
-        let token_resource = simodels::token::TokenResource {
-            message: message,
-            issuer: issuer,
-            audiences: vec![audience],
-            id: TEST_USER_ID,
-        };
+            let token_resource = simodels::token::TokenResource {
+                message: message,
+                issuer: issuer,
+                audiences: vec![audience],
+                id: TEST_USER_ID,
+            };
 
-        match simodels::token::create_token(&key, &token_resource, time::Duration::hours(1)) {
-            Ok((access_token, _some_time)) => Ok(access_token),
-            Err(err) => Err(err),
+            match simodels::token::create_token(&key, &token_resource, time::Duration::hours(1)) {
+                Ok((access_token, _some_time)) => Ok(access_token),
+                Err(err) => Err(err),
+            }
+        }
+
+        pub fn token_fields() -> (String, String, String) {
+            (
+                "What a twist!".to_string(),
+                "soaricarus_test".to_string(),
+                "soaricarus".to_string(),
+            )
         }
     }
 
     pub async fn bearer_auth() -> String {
-        let token = match test_token().await {
+        let token = match test_data::test_token().await {
             Ok(access_token) => access_token,
             Err(err) => {
                 assert!(false, "Error: {err:?}");
@@ -177,10 +185,17 @@ mod tests {
     }
 
     mod request {
+        use axum::Router as AxumRouter;
+        use axum::http;
+        use axum::response::Response as AxumResponse;
         use common_multipart_rfc7578::client::multipart::{
             Body as MultipartBody, Form as MultipartForm,
         };
+        use http::Error as AxumHttpError;
         use tower::ServiceExt;
+
+        use super::callers;
+        use super::payload_data;
 
         pub async fn song_queue_req(
             app: &axum::Router,
@@ -271,15 +286,29 @@ mod tests {
             app: &axum::Router,
             id: &uuid::Uuid,
         ) -> Result<axum::response::Response, axum::http::Error> {
-            let raw_uri = String::from(soaricarus_api::callers::queue::endpoints::QUEUESONGDATA);
+            let raw_uri = String::from(callers::queue::endpoints::QUEUESONGDATA);
             let end_index = raw_uri.len() - 4;
             let mut uri: String = (&raw_uri[..end_index]).to_string();
             uri += &id.to_string();
 
-            match run_post(None, &uri, axum::http::Method::GET, false).await {
+            match run_post(None, &uri, http::Method::GET, false).await {
                 Ok(request) => match app.clone().oneshot(request).await {
                     Ok(response) => Ok(response),
-                    Err(err) => Err(axum::http::Error::from(err)),
+                    Err(err) => Err(http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
+        }
+
+        pub async fn get_playback_queue(
+            app: &AxumRouter,
+            id: &uuid::Uuid,
+        ) -> Result<AxumResponse, AxumHttpError> {
+            let uri = format!("{}?id={}", callers::endpoints::GETPLAYBACKQUEUE, id);
+            match run_post(None, &uri, http::Method::GET, false).await {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(http::Error::from(err)),
                 },
                 Err(err) => Err(err),
             }
@@ -436,6 +465,95 @@ mod tests {
             );
 
             match run_post(None, &uri, axum::http::Method::GET, false).await {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
+        }
+
+        pub async fn create_playback_queue(
+            app: &axum::Router,
+            name: &str,
+            device_type: &str,
+            user_id: &uuid::Uuid,
+        ) -> Result<axum::response::Response, axum::http::Error> {
+            let uri = soaricarus_api::callers::endpoints::CREATEPLAYBACKQUEUE;
+            let payload =
+                super::payload_data::create_playback_queue(name, device_type, user_id).await;
+            match run_post(
+                Some(ReqBody::Json(payload)),
+                uri,
+                axum::http::Method::POST,
+                true,
+            )
+            .await
+            {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(axum::http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
+        }
+
+        pub async fn add_to_playback_queue(
+            app: &AxumRouter,
+            playback_queue_id: &uuid::Uuid,
+            song_id: &uuid::Uuid,
+        ) -> Result<AxumResponse, AxumHttpError> {
+            let uri = soaricarus_api::callers::endpoints::ADDPLAYBACKQUEUE;
+            let payload = payload_data::add_to_playback_queue(playback_queue_id, song_id).await;
+
+            match run_post(
+                Some(ReqBody::Json(payload)),
+                uri,
+                axum::http::Method::POST,
+                true,
+            )
+            .await
+            {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(AxumHttpError::from(err)),
+                },
+                Err(err) => Err(err),
+            }
+        }
+
+        pub async fn get_playback_queue_item(
+            app: &AxumRouter,
+            playback_queue_id: &uuid::Uuid,
+        ) -> Result<AxumResponse, AxumHttpError> {
+            let uri = format!(
+                "{}?playback_queue_id={}",
+                callers::endpoints::GETPLAYBACKQUEUEITEM,
+                playback_queue_id
+            );
+            match run_post(None, &uri, http::Method::GET, false).await {
+                Ok(request) => match app.clone().oneshot(request).await {
+                    Ok(response) => Ok(response),
+                    Err(err) => Err(http::Error::from(err)),
+                },
+                Err(err) => Err(err),
+            }
+        }
+
+        pub async fn clear_playback_queue(
+            app: &axum::Router,
+            playback_queue_id: &uuid::Uuid,
+        ) -> Result<axum::response::Response, axum::http::Error> {
+            let uri = soaricarus_api::callers::endpoints::CLEARPLAYBACKQUEUE;
+            let payload = super::payload_data::clear_playback_queue(playback_queue_id).await;
+            match run_post(
+                Some(ReqBody::Json(payload)),
+                uri,
+                axum::http::Method::POST,
+                true,
+            )
+            .await
+            {
                 Ok(request) => match app.clone().oneshot(request).await {
                     Ok(response) => Ok(response),
                     Err(err) => Err(axum::http::Error::from(err)),
@@ -633,7 +751,7 @@ mod tests {
                     let song_queue_id = resp.data[0];
                     assert_eq!(false, song_queue_id.is_nil(), "Should not be empty");
 
-                    let user_id = super::TEST_USER_ID;
+                    let user_id = super::test_data::TEST_USER_ID;
 
                     match super::request::song_queue_link_req(&app, &song_queue_id, &user_id).await
                     {
@@ -776,11 +894,16 @@ mod tests {
                 }
             }
         }
+
+        // TODO: Add playback queue flow
     }
 
     pub mod payload_data {
-        pub async fn queue_metadata(song_queue_id: &uuid::Uuid) -> serde_json::Value {
-            serde_json::json!(
+        use serde_json::Value as JsonValue;
+        use serde_json::json;
+
+        pub async fn queue_metadata(song_queue_id: &uuid::Uuid) -> JsonValue {
+            json!(
             {
                     "song_queue_id": song_queue_id,
                     "album" : "I",
@@ -797,11 +920,8 @@ mod tests {
             })
         }
 
-        pub async fn create_song(
-            song_queue_id: &uuid::Uuid,
-            user_id: &uuid::Uuid,
-        ) -> serde_json::Value {
-            serde_json::json!({
+        pub async fn create_song(song_queue_id: &uuid::Uuid, user_id: &uuid::Uuid) -> JsonValue {
+            json!({
                 "title" : "Hypocrite Like The Rest",
                 "artist" : "Kuoth",
                 "album_artist": "Kuoth",
@@ -819,11 +939,39 @@ mod tests {
             })
         }
 
+        pub async fn create_playback_queue(
+            name: &str,
+            device_type: &str,
+            user_id: &uuid::Uuid,
+        ) -> JsonValue {
+            json!({
+                "name": name,
+                "device_type": device_type,
+                "user_id": user_id
+            })
+        }
+
+        pub async fn clear_playback_queue(playback_queue_id: &uuid::Uuid) -> JsonValue {
+            json!({
+                "playback_queue_id": playback_queue_id
+            })
+        }
+
+        pub async fn add_to_playback_queue(
+            playback_queue_id: &uuid::Uuid,
+            song_id: &uuid::Uuid,
+        ) -> JsonValue {
+            json!({
+                "playback_queue_id": playback_queue_id,
+                "song_id": song_id
+            })
+        }
+
         pub async fn link_user_to_queued_song(
             song_queue_id: &uuid::Uuid,
             user_id: &uuid::Uuid,
-        ) -> serde_json::Value {
-            serde_json::json!({
+        ) -> JsonValue {
+            json!({
                 "song_queue_id": song_queue_id,
                 "user_id": user_id
             })
@@ -832,8 +980,8 @@ mod tests {
         pub async fn link_queued_coverart_to_queued_song(
             song_queue_id: &uuid::Uuid,
             coverart_queue_id: &uuid::Uuid,
-        ) -> serde_json::Value {
-            serde_json::json!({
+        ) -> JsonValue {
+            json!({
                 "song_queue_id": song_queue_id,
                 "coverart_id": coverart_queue_id
             })
@@ -842,17 +990,15 @@ mod tests {
         pub async fn create_coverart(
             song_id: &uuid::Uuid,
             coverart_queue_id: &uuid::Uuid,
-        ) -> serde_json::Value {
-            serde_json::json!({
+        ) -> JsonValue {
+            json!({
                 "song_id": song_id,
                 "coverart_queue_id": coverart_queue_id
             })
         }
 
-        pub async fn update_song_queue_status_to_ready(
-            song_queue_id: &uuid::Uuid,
-        ) -> serde_json::Value {
-            serde_json::json!({
+        pub async fn update_song_queue_status_to_ready(song_queue_id: &uuid::Uuid) -> JsonValue {
+            json!({
                 "id": song_queue_id,
                 "status": soaricarus_api::repo::queue::song::status::READY
             })
@@ -926,7 +1072,7 @@ mod tests {
                 assert_eq!(false, resp.data[0].is_nil(), "Should not be empty");
 
                 let song_queue_id = &resp.data[0];
-                let user_id = TEST_USER_ID;
+                let user_id = test_data::TEST_USER_ID;
                 println!("User Id: {user_id:?}");
 
                 match request::song_queue_link_req(&app, &song_queue_id, &user_id).await {
@@ -2036,16 +2182,22 @@ mod tests {
         let _ = db_mgr::drop_database(&tm_pool, &db_name).await;
     }
 
+    // NOTE: This was probably done so the tests in this module run after
+    // all the other tests finished
     pub mod zzz_after_song_queue {
         use futures::StreamExt;
         use tower::ServiceExt;
 
+        use super::callers;
+        use super::test_data as outer_test_data;
+        use super::{db_mgr, init, request, util};
+
         #[tokio::test]
         async fn test_get_songs() {
-            let tm_pool = super::db_mgr::get_pool().await.unwrap();
-            let db_name = super::db_mgr::generate_db_name().await;
+            let tm_pool = db_mgr::get_pool().await.unwrap();
+            let db_name = db_mgr::generate_db_name().await;
 
-            match super::db_mgr::create_database(&tm_pool, &db_name).await {
+            match db_mgr::create_database(&tm_pool, &db_name).await {
                 Ok(_) => {
                     println!("Success");
                 }
@@ -2057,16 +2209,16 @@ mod tests {
             let pool = super::db_mgr::connect_to_db(&db_name).await.unwrap();
             super::db_mgr::migrations(&pool).await;
 
-            let app = super::init::app(pool).await;
+            let app = init::app(pool).await;
 
             let (id, _, _, _) = test_data::song_id().await.unwrap();
 
-            let uri = format!("{}?id={id}", soaricarus_api::callers::endpoints::GETSONGS);
+            let uri = format!("{}?id={id}", callers::endpoints::GETSONGS);
 
             match app
                 .clone()
                 .oneshot(
-                    super::request::run_post(None, &uri, axum::http::Method::GET, false)
+                    request::run_post(None, &uri, axum::http::Method::GET, false)
                         .await
                         .unwrap(),
                 )
@@ -2074,7 +2226,7 @@ mod tests {
             {
                 Ok(response) => {
                     let resp = super::util::get_resp_data::<
-                        soaricarus_api::callers::song::response::get_songs::Response,
+                        callers::song::response::get_songs::Response,
                     >(response)
                     .await;
                     assert_eq!(false, resp.data.is_empty(), "Should not be empty");
@@ -2591,6 +2743,408 @@ mod tests {
             }
 
             let _ = super::db_mgr::drop_database(&tm_pool, &db_name).await;
+        }
+
+        #[tokio::test]
+        async fn test_create_playback_queue() {
+            let tm_pool = super::db_mgr::get_pool().await.unwrap();
+            let db_name = super::db_mgr::generate_db_name().await;
+
+            match super::db_mgr::create_database(&tm_pool, &db_name).await {
+                Ok(_) => {
+                    println!("Success");
+                }
+                Err(err) => {
+                    assert!(false, "Error: {:?}", err);
+                }
+            }
+
+            let pool = super::db_mgr::connect_to_db(&db_name).await.unwrap();
+            super::db_mgr::migrations(&pool).await;
+
+            let app = super::init::app(pool).await;
+            let user_id = super::test_data::TEST_USER_ID;
+            let device_type = super::test_data::DEVICE_TYPE;
+            let name = super::test_data::NAME;
+
+            match super::request::create_playback_queue(&app, name, device_type, &user_id).await {
+                Ok(response) => {
+                    let resp = super::util::get_resp_data::<
+                        soaricarus_api::callers::playback::queue::response::create_playback_queue::CreatePlaybackQueueResponse
+                    >(response)
+                    .await;
+                    assert_eq!(false, resp.data.is_empty(), "Should not be empty");
+                }
+                Err(err) => {
+                    eprintln!("Error: {err:?}");
+                    assert!(false, "Error: {err:?}");
+                }
+            }
+
+            let _ = super::db_mgr::drop_database(&tm_pool, &db_name).await;
+        }
+
+        #[tokio::test]
+        async fn test_get_playback_queue() {
+            let tm_pool = db_mgr::get_pool().await.unwrap();
+            let db_name = db_mgr::generate_db_name().await;
+
+            match db_mgr::create_database(&tm_pool, &db_name).await {
+                Ok(_) => {
+                    println!("Success");
+                }
+                Err(err) => {
+                    assert!(false, "Error: {:?}", err);
+                }
+            }
+
+            let pool = db_mgr::connect_to_db(&db_name).await.unwrap();
+            db_mgr::migrations(&pool).await;
+
+            let app = init::app(pool).await;
+            let user_id = outer_test_data::TEST_USER_ID;
+            let device_type = outer_test_data::DEVICE_TYPE;
+            let name = outer_test_data::NAME;
+
+            use callers::playback::queue::response::GetPlaybackQueueResponse;
+            use callers::playback::queue::response::create_playback_queue::CreatePlaybackQueueResponse;
+
+            match request::create_playback_queue(&app, name, device_type, &user_id).await {
+                Ok(response) => {
+                    let resp = util::get_resp_data::<CreatePlaybackQueueResponse>(response).await;
+                    assert_eq!(false, resp.data.is_empty(), "Should not be empty");
+                    let playback_queue = &resp.data[0];
+                    let playback_queue_id = playback_queue.id;
+
+                    match request::get_playback_queue(&app, &playback_queue_id).await {
+                        Ok(response) => {
+                            let resp =
+                                util::get_resp_data::<GetPlaybackQueueResponse>(response).await;
+                            assert_eq!(
+                                false,
+                                resp.data.is_empty(),
+                                "Playback queue was created, but nothing returned"
+                            );
+                        }
+                        Err(err) => {
+                            eprintln!("Error: {err:?}");
+                            assert!(false, "Error: {err:?}");
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Error: {err:?}");
+                    assert!(false, "Error: {err:?}");
+                }
+            }
+
+            let _ = db_mgr::drop_database(&tm_pool, &db_name).await;
+        }
+
+        #[tokio::test]
+        async fn test_add_to_playback_queue() {
+            let tm_pool = db_mgr::get_pool().await.unwrap();
+            let db_name = db_mgr::generate_db_name().await;
+
+            match db_mgr::create_database(&tm_pool, &db_name).await {
+                Ok(_) => {
+                    println!("Success");
+                }
+                Err(err) => {
+                    assert!(false, "Error: {:?}", err);
+                }
+            }
+
+            let pool = db_mgr::connect_to_db(&db_name).await.unwrap();
+            db_mgr::migrations(&pool).await;
+
+            let app = init::app(pool).await;
+            let user_id = outer_test_data::TEST_USER_ID;
+            let device_type = outer_test_data::DEVICE_TYPE;
+            let name = outer_test_data::NAME;
+
+            use callers::playback::queue::response::AddPlaybackQueueItemResponse;
+            use callers::playback::queue::response::GetPlaybackQueueResponse;
+            use callers::playback::queue::response::create_playback_queue::CreatePlaybackQueueResponse;
+
+            match request::create_playback_queue(&app, name, device_type, &user_id).await {
+                Ok(response) => {
+                    let resp = util::get_resp_data::<CreatePlaybackQueueResponse>(response).await;
+                    assert_eq!(false, resp.data.is_empty(), "Should not be empty");
+                    let playback_queue = &resp.data[0];
+                    let playback_queue_id = playback_queue.id;
+
+                    match request::get_playback_queue(&app, &playback_queue_id).await {
+                        Ok(response) => {
+                            let resp =
+                                util::get_resp_data::<GetPlaybackQueueResponse>(response).await;
+                            assert_eq!(
+                                false,
+                                resp.data.is_empty(),
+                                "Playback queue was created, but nothing returned"
+                            );
+
+                            let song_id = super::test_data::TEST_SONG_ID;
+
+                            match request::add_to_playback_queue(&app, &playback_queue_id, &song_id)
+                                .await
+                            {
+                                Ok(response) => {
+                                    let resp = util::get_resp_data::<AddPlaybackQueueItemResponse>(
+                                        response,
+                                    )
+                                    .await;
+                                    assert_eq!(
+                                        false,
+                                        resp.data.is_empty(),
+                                        "Playback queue item not added"
+                                    );
+                                }
+                                Err(err) => {
+                                    assert!(false, "Error: {err:?}");
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("Error: {err:?}");
+                            assert!(false, "Error: {err:?}");
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Error: {err:?}");
+                    assert!(false, "Error: {err:?}");
+                }
+            }
+
+            let _ = db_mgr::drop_database(&tm_pool, &db_name).await;
+        }
+
+        #[tokio::test]
+        async fn test_get_playback_queue_items() {
+            let tm_pool = db_mgr::get_pool().await.unwrap();
+            let db_name = db_mgr::generate_db_name().await;
+
+            match db_mgr::create_database(&tm_pool, &db_name).await {
+                Ok(_) => {
+                    println!("Success");
+                }
+                Err(err) => {
+                    assert!(false, "Error: {:?}", err);
+                }
+            }
+
+            let pool = db_mgr::connect_to_db(&db_name).await.unwrap();
+            db_mgr::migrations(&pool).await;
+
+            let app = init::app(pool).await;
+            let user_id = outer_test_data::TEST_USER_ID;
+            let device_type = outer_test_data::DEVICE_TYPE;
+            let name = outer_test_data::NAME;
+
+            use callers::playback::queue::response::AddPlaybackQueueItemResponse;
+            use callers::playback::queue::response::GetPlaybackQueueItemResponse;
+            use callers::playback::queue::response::GetPlaybackQueueResponse;
+            use callers::playback::queue::response::create_playback_queue::CreatePlaybackQueueResponse;
+
+            match request::create_playback_queue(&app, name, device_type, &user_id).await {
+                Ok(response) => {
+                    let resp = util::get_resp_data::<CreatePlaybackQueueResponse>(response).await;
+                    assert_eq!(false, resp.data.is_empty(), "Should not be empty");
+                    let playback_queue = &resp.data[0];
+                    let playback_queue_id = playback_queue.id;
+
+                    match request::get_playback_queue(&app, &playback_queue_id).await {
+                        Ok(response) => {
+                            let resp =
+                                util::get_resp_data::<GetPlaybackQueueResponse>(response).await;
+                            assert_eq!(
+                                false,
+                                resp.data.is_empty(),
+                                "Playback queue was created, but nothing returned"
+                            );
+
+                            let song_id = super::test_data::TEST_SONG_ID;
+
+                            match request::add_to_playback_queue(&app, &playback_queue_id, &song_id)
+                                .await
+                            {
+                                Ok(response) => {
+                                    let resp = util::get_resp_data::<AddPlaybackQueueItemResponse>(
+                                        response,
+                                    )
+                                    .await;
+                                    assert_eq!(
+                                        false,
+                                        resp.data.is_empty(),
+                                        "Playback queue item not added"
+                                    );
+
+                                    match request::get_playback_queue_item(&app, &playback_queue_id)
+                                        .await
+                                    {
+                                        Ok(response) => {
+                                            let resp = util::get_resp_data::<
+                                                GetPlaybackQueueItemResponse,
+                                            >(
+                                                response
+                                            )
+                                            .await;
+                                            assert_eq!(
+                                                false,
+                                                resp.data.is_empty(),
+                                                "Playback queue item not found"
+                                            );
+                                        }
+                                        Err(err) => {
+                                            assert!(false, "Error: {err:?}");
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    assert!(false, "Error: {err:?}");
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("Error: {err:?}");
+                            assert!(false, "Error: {err:?}");
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Error: {err:?}");
+                    assert!(false, "Error: {err:?}");
+                }
+            }
+
+            let _ = db_mgr::drop_database(&tm_pool, &db_name).await;
+        }
+
+        #[tokio::test]
+        async fn test_clear_playback_queue() {
+            let tm_pool = db_mgr::get_pool().await.unwrap();
+            let db_name = db_mgr::generate_db_name().await;
+
+            match db_mgr::create_database(&tm_pool, &db_name).await {
+                Ok(_) => {
+                    println!("Success");
+                }
+                Err(err) => {
+                    assert!(false, "Error: {:?}", err);
+                }
+            }
+
+            let pool = db_mgr::connect_to_db(&db_name).await.unwrap();
+            db_mgr::migrations(&pool).await;
+
+            let app = init::app(pool).await;
+            let user_id = outer_test_data::TEST_USER_ID;
+            let device_type = outer_test_data::DEVICE_TYPE;
+            let name = outer_test_data::NAME;
+
+            use callers::playback::queue::response::AddPlaybackQueueItemResponse;
+            use callers::playback::queue::response::ClearPlaybackQueueResponse;
+            use callers::playback::queue::response::GetPlaybackQueueItemResponse;
+            use callers::playback::queue::response::GetPlaybackQueueResponse;
+            use callers::playback::queue::response::create_playback_queue::CreatePlaybackQueueResponse;
+
+            match request::create_playback_queue(&app, name, device_type, &user_id).await {
+                Ok(response) => {
+                    let resp = util::get_resp_data::<CreatePlaybackQueueResponse>(response).await;
+                    assert_eq!(false, resp.data.is_empty(), "Should not be empty");
+                    let playback_queue = &resp.data[0];
+                    let playback_queue_id = playback_queue.id;
+
+                    match request::get_playback_queue(&app, &playback_queue_id).await {
+                        Ok(response) => {
+                            let resp =
+                                util::get_resp_data::<GetPlaybackQueueResponse>(response).await;
+                            assert_eq!(
+                                false,
+                                resp.data.is_empty(),
+                                "Playback queue was created, but nothing returned"
+                            );
+
+                            let song_id = super::test_data::TEST_SONG_ID;
+
+                            match request::add_to_playback_queue(&app, &playback_queue_id, &song_id)
+                                .await
+                            {
+                                Ok(response) => {
+                                    let resp = util::get_resp_data::<AddPlaybackQueueItemResponse>(
+                                        response,
+                                    )
+                                    .await;
+                                    assert_eq!(
+                                        false,
+                                        resp.data.is_empty(),
+                                        "Playback queue item not added"
+                                    );
+
+                                    match request::get_playback_queue_item(&app, &playback_queue_id)
+                                        .await
+                                    {
+                                        Ok(response) => {
+                                            let resp = util::get_resp_data::<
+                                                GetPlaybackQueueItemResponse,
+                                            >(
+                                                response
+                                            )
+                                            .await;
+                                            assert_eq!(
+                                                false,
+                                                resp.data.is_empty(),
+                                                "Playback queue item not found"
+                                            );
+
+                                            match request::clear_playback_queue(
+                                                &app,
+                                                &playback_queue_id,
+                                            )
+                                            .await
+                                            {
+                                                Ok(response) => {
+                                                    let resp = util::get_resp_data::<
+                                                        ClearPlaybackQueueResponse,
+                                                    >(
+                                                        response
+                                                    )
+                                                    .await;
+                                                    assert_eq!(
+                                                        false,
+                                                        resp.data.is_empty(),
+                                                        "Should have returned the queue after clearing"
+                                                    );
+                                                }
+                                                Err(err) => {
+                                                    assert!(false, "Error: {err:?}");
+                                                }
+                                            }
+                                        }
+                                        Err(err) => {
+                                            assert!(false, "Error: {err:?}");
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    assert!(false, "Error: {err:?}");
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("Error: {err:?}");
+                            assert!(false, "Error: {err:?}");
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Error: {err:?}");
+                    assert!(false, "Error: {err:?}");
+                }
+            }
+
+            let _ = db_mgr::drop_database(&tm_pool, &db_name).await;
         }
     }
 }
